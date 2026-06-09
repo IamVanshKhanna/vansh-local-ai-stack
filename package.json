@@ -1,0 +1,17 @@
+{
+  "name": "vansh-local-ai-stack",
+  "version": "0.1.0",
+  "description": "A lightweight, modular local AI workspace for coding, automation, and personal knowledge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo 'Python project - no build step required'"
+  },
+  "keywords": [
+    "local-ai",
+    "ollama",
+    "automation",
+    "rag"
+  ],
+  "license": "MIT"
+}
