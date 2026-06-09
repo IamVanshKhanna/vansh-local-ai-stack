@@ -14,15 +14,16 @@ Usage:
 import argparse
 import json
 import logging
+import os
 import re
 import sqlite3
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import requests
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
 
