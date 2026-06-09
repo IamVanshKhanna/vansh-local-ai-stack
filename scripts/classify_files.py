@@ -8,7 +8,7 @@ ambiguous files.
 
 Usage:
     python classify_files.py --input catalog.json --output classified.json
-    python classify_files.py --input catalog.db --rules custom_rules.yaml
+    python classify_files.py --input catalog.db --output classified.db --rules custom_rules.yaml
 """
 
 import argparse
@@ -78,20 +78,27 @@ DEFAULT_RULES = {
 }
 
 
-def load_catalog(catalog_path: Path) -> list[dict]:
-    """Load catalog from JSON or SQLite file."""
+def load_catalog(catalog_path: Path) -> tuple[list[dict], int, str]:
+    """Load catalog from JSON or DAL SQLite file.
+
+    Returns (files, scan_id, source_type).  For DAL input, *scan_id* is the
+    scan that owns the files so classifications can be written back.
+    """
     if catalog_path.suffix == ".db":
-        conn = sqlite3.connect(catalog_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM files")
-        columns = [desc[0] for desc in cursor.description]
-        files = [dict(zip(columns, row)) for row in cursor.fetchall()]
-        conn.close()
-        return files
+        from db import connection, dal
+        connection.set_db_path(catalog_path)
+        # use the latest scan if the user did not specify one
+        scans = dal.list_scans(limit=1)
+        if not scans:
+            logger.error(f"No scans found in DAL database: {catalog_path}")
+            sys.exit(1)
+        scan_id = scans[0]["id"]
+        files = dal.list_files_by_scan(scan_id)
+        return files, scan_id, "dal"
     else:
         with open(catalog_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-            return data.get("files", data)
+        return data.get("files", data), -1, "json"
 
 
 def classify_by_extension(file_data: dict, rules: dict) -> Optional[str]:
@@ -170,21 +177,64 @@ def classify_file(file_data: dict, rules: dict, use_llm: bool = False) -> dict:
     """Classify a single file."""
     # Try extension-based first
     category = classify_by_extension(file_data, rules)
+    method = "rule" if category else ""
 
     # Try path-based
     if not category:
         category = classify_by_path(file_data, rules)
+        method = "path" if category else ""
 
     # Use LLM for ambiguous files
     if not category and use_llm:
         category = classify_with_llm(file_data)
+        method = "llm"
 
     # Default
     if not category:
         category = rules.get("default_category", "uncategorized")
+        method = "default"
 
     file_data["category"] = category
+    file_data["method"] = method
+    file_data["confidence"] = 1.0 if method in ("rule", "path") else 0.8
     return file_data
+
+
+def save_json(classified: list[dict], output_path: Path, category_counts: dict):
+    """Save classification results to JSON file."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    output_data = {
+        "version": "1.0",
+        "classified_date": datetime.now().isoformat(),
+        "total_files": len(classified),
+        "category_counts": category_counts,
+        "files": classified,
+    }
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(output_data, f, indent=2)
+
+    logger.info(f"Saved classification to {output_path}")
+
+
+def save_dal(classified: list[dict], output_path: Path, scan_id: int):
+    """Save classification results back to the DAL."""
+    from db import connection, dal
+
+    connection.set_db_path(output_path)
+    # db already exists from the scan, so we just need to insert classifications
+    classifications = [
+        {
+            "file_id": f["id"],
+            "category": f["category"],
+            "method": f.get("method", "rule"),
+            "confidence": f.get("confidence", 1.0),
+        }
+        for f in classified
+    ]
+    dal.insert_classifications(scan_id, classifications)
+    logger.info(f"Saved {len(classified)} classifications to DAL scan_id={scan_id}")
 
 
 def main():
@@ -199,7 +249,7 @@ def main():
     parser.add_argument(
         "--output", "-o",
         required=True,
-        help="Output classification file (.json)"
+        help="Output classification file (.json or .db)"
     )
     parser.add_argument(
         "--rules", "-r",
@@ -236,8 +286,8 @@ def main():
         sys.exit(1)
 
     logger.info(f"Loading catalog: {catalog_path}")
-    files = load_catalog(catalog_path)
-    logger.info(f"Loaded {len(files)} files")
+    files, scan_id, source_type = load_catalog(catalog_path)
+    logger.info(f"Loaded {len(files)} files (source_type={source_type})")
 
     # Classify files
     classified = []
@@ -252,20 +302,10 @@ def main():
 
     # Save results
     output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    output_data = {
-        "version": "1.0",
-        "classified_date": datetime.now().isoformat(),
-        "total_files": len(classified),
-        "category_counts": category_counts,
-        "files": classified,
-    }
-
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(output_data, f, indent=2)
-
-    logger.info(f"Saved classification to {output_path}")
+    if output_path.suffix == ".db" or source_type == "dal":
+        save_dal(classified, output_path, scan_id)
+    else:
+        save_json(classified, output_path, category_counts)
 
     # Print summary
     print(f"\nClassification Summary:")

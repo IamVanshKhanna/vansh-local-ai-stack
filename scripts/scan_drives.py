@@ -3,7 +3,9 @@
 scan_drives.py - Scan and catalog filesystem for analysis
 
 Scans specified directories and records file metadata (path, size, extension,
-timestamps) to a JSON or SQLite catalog for further processing.
+timestamps) to a JSON or SQLite catalog for further processing.  When writing to
+SQLite the script uses the shared DAL schema so downstream tools (classify,
+report, etc.) all read from the same database.
 
 Usage:
     python scan_drives.py --paths "D:\\,E:\\" --output catalog.json
@@ -13,7 +15,6 @@ Usage:
 import argparse
 import json
 import logging
-import sqlite3
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -24,7 +25,6 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
-
 
 # Default directories to skip
 SKIP_DIRS = {
@@ -61,16 +61,19 @@ def scan_directory(root: Path, skip_hidden: bool = True) -> Iterator[dict]:
 
     for path in root.rglob("*"):
         try:
+            # Resolve relative parts so we only skip dirs inside the scan root
+            relative_parts = path.relative_to(root).parts
+
             # Skip hidden files
-            if skip_hidden and any(part.startswith(".") for part in path.parts):
+            if skip_hidden and any(part.startswith(".") for part in relative_parts):
                 continue
 
             # Skip directories in skip list
             if path.is_dir() and should_skip(path):
                 continue
 
-            # Skip files in skipped directories
-            if any(should_skip(Path(part)) for part in path.parts):
+            # Skip files inside skipped directories (relative to root only)
+            if any(should_skip(Path(part)) for part in relative_parts):
                 continue
 
             if path.is_file():
@@ -119,52 +122,20 @@ def save_json(catalog: list[dict], output_path: Path):
     logger.info(f"Saved {len(catalog)} files to {output_path}")
 
 
-def save_sqlite(catalog: list[dict], output_path: Path):
-    """Save catalog to SQLite database."""
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+def save_dal(catalog: list[dict], output_path: Path, root_paths: str, skip_hidden: bool) -> int:
+    """Save catalog through the shared DAL so downstream tools can read it."""
+    # Local import so the script can still run without db/ when --output is .json
+    from db import connection, dal
 
-    conn = sqlite3.connect(output_path)
-    cursor = conn.cursor()
+    connection.set_db_path(output_path)
+    connection.init_db()
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            path TEXT UNIQUE,
-            name TEXT,
-            extension TEXT,
-            size INTEGER,
-            size_human TEXT,
-            modified TEXT,
-            created TEXT,
-            parent TEXT,
-            scan_date TEXT
-        )
-    """)
+    scan_id = dal.create_scan(root_paths, skip_hidden)
+    dal.insert_files(scan_id, catalog)
+    dal.update_scan_stats(scan_id, len(catalog), sum(f["size"] for f in catalog))
 
-    cursor.execute("DELETE FROM files")  # Clear previous scan
-
-    scan_date = datetime.now().isoformat()
-    for file_data in catalog:
-        cursor.execute("""
-            INSERT OR REPLACE INTO files
-            (path, name, extension, size, size_human, modified, created, parent, scan_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            file_data["path"],
-            file_data["name"],
-            file_data["extension"],
-            file_data["size"],
-            file_data["size_human"],
-            file_data["modified"],
-            file_data.get("created"),
-            file_data["parent"],
-            scan_date,
-        ))
-
-    conn.commit()
-    conn.close()
-
-    logger.info(f"Saved {len(catalog)} files to {output_path}")
+    logger.info(f"Saved {len(catalog)} files to DAL scan_id={scan_id} at {output_path}")
+    return scan_id
 
 
 def main():
@@ -183,7 +154,7 @@ def main():
     )
     parser.add_argument(
         "--format", "-f",
-        choices=["json", "sqlite"],
+        choices=["json", "sqlite", "dal"],
         help="Output format (auto-detected from extension if not specified)"
     )
     parser.add_argument(
@@ -216,7 +187,8 @@ def main():
     output_path = Path(args.output)
     output_format = args.format
     if not output_format:
-        output_format = "sqlite" if output_path.suffix == ".db" else "json"
+        ext = output_path.suffix.lower()
+        output_format = "dal" if ext == ".db" else "json"
 
     # Scan all paths
     catalog = []
@@ -233,7 +205,7 @@ def main():
     if output_format == "json":
         save_json(catalog, output_path)
     else:
-        save_sqlite(catalog, output_path)
+        save_dal(catalog, output_path, args.paths, args.skip_hidden)
 
     # Print summary stats
     print(f"\nScan Summary:")
