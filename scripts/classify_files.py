@@ -11,6 +11,8 @@ Usage:
     python classify_files.py --input catalog.db --output classified.db --rules custom_rules.yaml
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import logging
@@ -81,8 +83,9 @@ DEFAULT_RULES = {
 def load_catalog(catalog_path: Path) -> tuple[list[dict], int, str]:
     """Load catalog from JSON or DAL SQLite file.
 
-    Returns (files, scan_id, source_type).  For DAL input, *scan_id* is the
-    scan that owns the files so classifications can be written back.
+    Returns ``(files, scan_id, source_type)`` where *scan_id* is the
+    scan that owns the files (for DAL input) and *source_type* is
+    ``"dal"`` or ``"json"``.
     """
     if catalog_path.suffix == ".db":
         from db import connection, dal
@@ -102,7 +105,10 @@ def load_catalog(catalog_path: Path) -> tuple[list[dict], int, str]:
 
 
 def classify_by_extension(file_data: dict, rules: dict) -> Optional[str]:
-    """Classify file by extension."""
+    """Classify file by extension.
+
+    Returns the matching category name, or ``None`` if no rule matches.
+    """
     ext = file_data.get("extension", "").lower()
 
     for category, rule in rules["categories"].items():
@@ -113,7 +119,10 @@ def classify_by_extension(file_data: dict, rules: dict) -> Optional[str]:
 
 
 def classify_by_path(file_data: dict, rules: dict) -> Optional[str]:
-    """Classify file by path patterns."""
+    """Classify file by path patterns.
+
+    Returns the matching category name, or ``None`` if no rule matches.
+    """
     path = file_data.get("path", "").lower()
 
     for category, rule in rules["categories"].items():
@@ -125,7 +134,11 @@ def classify_by_path(file_data: dict, rules: dict) -> Optional[str]:
 
 
 def classify_with_llm(file_data: dict, model: str = "llama3.2") -> str:
-    """Classify ambiguous file using LLM."""
+    """Classify ambiguous file using LLM.
+
+    Sends filename metadata to Ollama and parses the category from the
+    response.  Falls back to ``"uncategorized"`` on any error.
+    """
     ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
     filename = file_data.get("name", "")
@@ -174,7 +187,13 @@ Category:"""
 
 
 def classify_file(file_data: dict, rules: dict, use_llm: bool = False) -> dict:
-    """Classify a single file."""
+    """Classify a single file.
+
+    Tries extension-based rules first, then path-based rules, then
+    optionally LLM classification for ambiguous files.  The original
+    *file_data* dict is mutated with ``category``, ``method``, and
+    ``confidence`` keys and returned.
+    """
     # Try extension-based first
     category = classify_by_extension(file_data, rules)
     method = "rule" if category else ""
@@ -200,7 +219,7 @@ def classify_file(file_data: dict, rules: dict, use_llm: bool = False) -> dict:
     return file_data
 
 
-def save_json(classified: list[dict], output_path: Path, category_counts: dict):
+def save_json(classified: list[dict], output_path: Path, category_counts: dict) -> None:
     """Save classification results to JSON file."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -218,7 +237,7 @@ def save_json(classified: list[dict], output_path: Path, category_counts: dict):
     logger.info(f"Saved classification to {output_path}")
 
 
-def save_dal(classified: list[dict], output_path: Path, scan_id: int):
+def save_dal(classified: list[dict], output_path: Path, scan_id: int) -> None:
     """Save classification results back to the DAL."""
     from db import connection, dal
 
@@ -237,7 +256,7 @@ def save_dal(classified: list[dict], output_path: Path, scan_id: int):
     logger.info(f"Saved {len(classified)} classifications to DAL scan_id={scan_id}")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Classify files from catalog"
     )

@@ -12,6 +12,8 @@ Usage:
     python scan_drives.py --paths "/home/user/Documents" --output catalog.db --format sqlite
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import logging
@@ -19,6 +21,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator
+
+from utils import format_size
 
 logging.basicConfig(
     level=logging.INFO,
@@ -93,15 +97,6 @@ def scan_directory(root: Path, skip_hidden: bool = True) -> Iterator[dict]:
             logger.warning(f"Permission denied: {path}")
         except Exception as e:
             logger.warning(f"Error processing {path}: {e}")
-
-
-def format_size(size: int) -> str:
-    """Format size in human-readable format."""
-    for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if size < 1024:
-            return f"{size:.1f} {unit}"
-        size /= 1024
-    return f"{size:.1f} PB"
 
 
 def save_json(catalog: list[dict], output_path: Path):

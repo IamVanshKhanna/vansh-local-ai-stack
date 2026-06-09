@@ -104,8 +104,8 @@ class TestGenerateMovePlan:
 
         moves = generate_move_plan(files, targets)
         assert len(moves) == 2
-        assert moves[0]["destination"] == "/home/user/Organized/Documents/report.pdf"
-        assert moves[1]["destination"] == "/home/user/Organized/Media/photo.jpg"
+        assert Path(moves[0]["destination"]) == Path("/home/user/Organized/Documents/report.pdf")
+        assert Path(moves[1]["destination"]) == Path("/home/user/Organized/Media/photo.jpg")
 
     def test_skips_unknown_category(self):
         files = [

@@ -47,6 +47,12 @@ winget install Jan.Jan
 # Or download from https://jan.ai
 ```
 
+### 5. Install the CLI (optional)
+```powershell
+pip install -e .
+vls --help
+```
+
 ## Repository Structure
 
 ```
@@ -69,6 +75,7 @@ vansh-local-ai-stack/
 │   ├── apply_moves.py        # Execute file reorganization
 │   ├── disk_report.py        # Generate storage reports
 │   ├── health_check.py       # System health monitoring
+│   ├── generate_plan.py      # Move plan generation
 │   └── examples/             # Helper scripts
 ├── config/
 │   ├── .env.example          # Environment variables template
@@ -88,6 +95,7 @@ vansh-local-ai-stack/
 - Automatic file sorting by type/date/project
 - Scheduled disk space reports
 - Backup verification and health checks
+- Move plan generation for batch file operations
 
 ### Knowledge Management (Phase 2+)
 - RAG-powered document search

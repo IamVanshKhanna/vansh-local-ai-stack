@@ -4,10 +4,13 @@
 Top-level CLI for the local AI stack. Subcommands:
     scan        Scan filesystems and build a catalog
     classify    Classify files from a catalog
+    generate    Generate move plans from classified files
     apply       Apply file move plans safely
     report      Generate disk usage reports
     health      Run system health checks
 """
+
+from __future__ import annotations
 
 import argparse
 import sys
@@ -17,15 +20,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "scripts"))
 
 
-def _scan(args):
-    from scan_drives import scan_directory, format_size, save_dal, save_json
-    from db import connection, dal
+def _scan(args: argparse.Namespace) -> None:
+    from scan_drives import scan_directory, save_dal, save_json
 
     paths = [Path(p.strip()) for p in args.paths.split(",")]
     output_path = Path(args.output)
     output_format = args.format or ("dal" if output_path.suffix == ".db" else "json")
 
-    catalog = []
+    catalog: list[dict] = []
     for path in paths:
         for f in scan_directory(path, args.skip_hidden):
             catalog.append(f)
@@ -38,13 +40,12 @@ def _scan(args):
     print(f"Scanned {len(catalog)} files -> {output_path}")
 
 
-def _classify(args):
+def _classify(args: argparse.Namespace) -> None:
     from classify_files import load_catalog, classify_file, save_dal, save_json, DEFAULT_RULES
-    from db import connection, dal
 
     files, scan_id, source_type = load_catalog(Path(args.input))
-    classified = []
-    category_counts = {}
+    classified: list[dict] = []
+    category_counts: dict[str, int] = {}
     for f in files:
         result = classify_file(f, DEFAULT_RULES, args.use_llm)
         classified.append(result)
@@ -59,7 +60,47 @@ def _classify(args):
     print(f"Classified {len(classified)} files -> {output_path}")
 
 
-def _apply(args):
+def _generate(args: argparse.Namespace) -> None:
+    from generate_plan import load_classified, load_targets, parse_target_map, generate_moves
+    from utils import format_size
+    import json
+    from datetime import datetime
+
+    classified_path = Path(args.input)
+    classified_files, _source_type = load_classified(classified_path)
+
+    if args.target_map:
+        targets = parse_target_map(args.target_map)
+    else:
+        targets = load_targets(Path(args.targets) if args.targets else None)
+
+    moves = generate_moves(classified_files, targets)
+
+    category_counts: dict[str, int] = {}
+    for m in moves:
+        cat = m["category"]
+        category_counts[cat] = category_counts.get(cat, 0) + 1
+
+    plan = {
+        "version": "1.0",
+        "generated": datetime.now().isoformat(),
+        "source_file": str(classified_path),
+        "total_moves": len(moves),
+        "category_summary": category_counts,
+        "moves": moves,
+    }
+
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(plan, f, indent=2)
+
+    print(f"Generated {len(moves)} move operations -> {output_path}")
+    for cat, count in sorted(category_counts.items(), key=lambda x: -x[1]):
+        print(f"  {cat}: {count}")
+
+
+def _apply(args: argparse.Namespace) -> None:
     from apply_moves import apply_moves
     import json
 
@@ -76,8 +117,10 @@ def _apply(args):
     print(f"Results: {results['success']} success, {results['failed']} failed, {results['skipped']} skipped")
 
 
-def _report(args):
-    from disk_report import generate_report, format_size
+def _report(args: argparse.Namespace) -> None:
+    from disk_report import generate_report
+    from utils import format_size
+
     report = generate_report(args.paths)
     for d in report["drives"]:
         print(f"{d['path']}: {format_size(d['free'] * 1024 ** 3)} free / {format_size(d['total'] * 1024 ** 3)} total")
@@ -85,7 +128,7 @@ def _report(args):
         print("Alerts:", report["alerts"])
 
 
-def _health(args):
+def _health(args: argparse.Namespace) -> None:
     from health_check import run_health_check
     result = run_health_check(args.checks)
     print(f"Status: {result['status']}")
@@ -93,7 +136,7 @@ def _health(args):
         print(f"  {name}: {check['status']}")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(prog="vls")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -111,6 +154,14 @@ def main():
     cls_p.add_argument("--output", "-o", required=True)
     cls_p.add_argument("--use-llm", action="store_true")
     cls_p.set_defaults(func=_classify)
+
+    # generate
+    gen_p = sub.add_parser("generate", help="Generate move plans from classified files")
+    gen_p.add_argument("--input", "-i", required=True, help="Classified files (.json or .db)")
+    gen_p.add_argument("--output", "-o", required=True, help="Output move plan JSON")
+    gen_p.add_argument("--targets", "-t", help="Target directory mapping JSON file")
+    gen_p.add_argument("--target-map", help="Comma-separated category=path pairs")
+    gen_p.set_defaults(func=_generate)
 
     # apply
     app_p = sub.add_parser("apply", help="Apply move plans")

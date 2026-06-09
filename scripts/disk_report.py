@@ -10,6 +10,8 @@ Usage:
     python disk_report.py --threshold 90 --alert  # Alert if any drive > 90%
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import logging
@@ -19,6 +21,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+from utils import format_size
 
 logging.basicConfig(
     level=logging.INFO,
@@ -72,7 +76,10 @@ def get_all_drives() -> list[str]:
 
 
 def find_largest_files(directory: str, count: int = 10) -> list[dict]:
-    """Find the largest files in a directory."""
+    """Find the largest files in a directory.
+
+    Returns up to *count* file entries sorted by size descending.
+    """
     logger.info(f"Finding largest files in {directory}")
 
     files = []
@@ -98,19 +105,10 @@ def find_largest_files(directory: str, count: int = 10) -> list[dict]:
     return files[:count]
 
 
-def format_size(size: int) -> str:
-    """Format size in human-readable format."""
-    for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if size < 1024:
-            return f"{size:.1f} {unit}"
-        size /= 1024
-    return f"{size:.1f} PB"
-
-
 def generate_report(
     drives: list[str],
     include_large_files: bool = False,
-    large_file_count: int = 10
+    large_file_count: int = 10,
 ) -> dict:
     """Generate disk usage report."""
     report = {

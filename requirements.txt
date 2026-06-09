@@ -32,3 +32,6 @@ langchain-community>=0.0.10
 # Voice input (Phase 5)
 # openai-whisper>=20230314  # OpenAI Whisper for voice transcription
 # faster-whisper>=0.10.0     # Faster Whisper alternative
+
+# Dev
+pytest>=7.0

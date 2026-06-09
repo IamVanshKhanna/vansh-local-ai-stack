@@ -10,6 +10,8 @@ Usage:
     python health_check.py --only ollama,gpu,ram
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import logging
@@ -297,7 +299,7 @@ def run_health_check(
     return results
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Check system health and service availability"
     )

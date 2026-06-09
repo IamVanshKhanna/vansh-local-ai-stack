@@ -11,6 +11,8 @@ Usage:
     python apply_moves.py --plan moves.json --execute --force  # Overwrite existing
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import logging
@@ -30,18 +32,17 @@ logger = logging.getLogger(__name__)
 def generate_move_plan(
     classified_files: list[dict],
     target_structure: dict,
-    dry_run: bool = True
+    dry_run: bool = True,
 ) -> list[dict]:
-    """
-    Generate move operations from classified files.
+    """Generate move operations from classified files.
 
     Args:
-        classified_files: List of files with categories
-        target_structure: Mapping of category to target directory
-        dry_run: Generate plan without checking conflicts
+        classified_files: List of files with categories.
+        target_structure: Mapping of category to target directory.
+        dry_run: Generate plan without checking conflicts.
 
     Returns:
-        List of move operations
+        List of move operations.
     """
     moves = []
 
@@ -68,8 +69,7 @@ def generate_move_plan(
 
 
 def validate_moves(moves: list[dict], force: bool = False) -> list[dict]:
-    """
-    Validate move operations for conflicts.
+    """Validate move operations for conflicts.
 
     Returns list of issues (empty if all valid).
     """
@@ -124,19 +124,18 @@ def execute_move(
     source: Path,
     destination: Path,
     operation: str = "move",
-    force: bool = False
+    force: bool = False,
 ) -> dict:
-    """
-    Execute a file move or copy operation.
+    """Execute a file move or copy operation.
 
     Args:
-        source: Source file path
-        destination: Destination file path
-        operation: "move" or "copy"
-        force: Overwrite existing files
+        source: Source file path.
+        destination: Destination file path.
+        operation: ``"move"`` or ``"copy"``.
+        force: Overwrite existing files.
 
     Returns:
-        Result dictionary with status
+        Result dictionary with status.
     """
     try:
         # Create destination parent if needed
@@ -179,20 +178,19 @@ def apply_moves(
     execute: bool = False,
     dry_run: bool = False,
     force: bool = False,
-    operation: str = "move"
+    operation: str = "move",
 ) -> dict:
-    """
-    Apply move operations.
+    """Apply move operations.
 
     Args:
-        moves: List of move operations
-        execute: Actually execute moves
-        dry_run: Just validate and report
-        force: Overwrite existing files
-        operation: "move" or "copy"
+        moves: List of move operations.
+        execute: Actually execute moves.
+        dry_run: Just validate and report.
+        force: Overwrite existing files.
+        operation: ``"move"`` or ``"copy"``.
 
     Returns:
-        Results summary
+        Results summary.
     """
     results = {
         "total": len(moves),
@@ -246,7 +244,7 @@ def apply_moves(
     return results
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Apply file moves safely"
     )
