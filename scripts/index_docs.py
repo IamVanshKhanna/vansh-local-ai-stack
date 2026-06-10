@@ -1,4 +1,4 @@
-"""Index documents for RAG — chunk text files, embed via Ollama, store in DB."""
+"""Index documents for RAG — chunk files, embed via Ollama, store in DB."""
 
 from __future__ import annotations
 
@@ -9,41 +9,45 @@ import requests
 
 from db.connection import get_connection, init_db
 from db.rag_dal import upsert_document, set_document_status, insert_chunks
+from extract_text import extract_file
 
 
 def _init_rag_db():
     """Initialize both base schema and RAG schema."""
     init_db()
-    from pathlib import Path as _P
-    schema = _P(__file__).parent / "db" / "schema_rag.sql"
+    schema = Path(__file__).parent / "db" / "schema_rag.sql"
     if schema.exists():
         with get_connection() as conn:
             conn.executescript(schema.read_text())
             conn.commit()
+    # Schema migration: add file_type column if missing (SQLite compat)
+    try:
+        with get_connection() as conn:
+            conn.execute(
+                "ALTER TABLE documents ADD COLUMN file_type TEXT DEFAULT 'text'"
+            )
+            conn.commit()
+    except Exception:
+        pass
 
 logger = logging.getLogger(__name__)
 
-TEXT_EXTENSIONS = {
+INDEXABLE_EXTENSIONS = {
     ".txt", ".md", ".py", ".js", ".ts", ".jsx", ".tsx",
     ".json", ".yaml", ".yml", ".csv", ".xml", ".html", ".css",
     ".cfg", ".ini", ".conf", ".toml", ".env", ".sql", ".sh", ".ps1",
     ".bat", ".rst", ".tex",
+    ".pdf", ".docx",
+    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif",
+    ".webp", ".heic", ".heif",
 }
 
 CHUNK_SIZE = 2048
 CHUNK_OVERLAP = 256
 
 
-def is_text_file(path: Path) -> bool:
-    return path.suffix.lower() in TEXT_EXTENSIONS
-
-
-def read_file(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8", errors="replace")
-    except Exception as e:
-        logger.warning("Could not read %s: %s", path, e)
-        return ""
+def is_indexable(path: Path) -> bool:
+    return path.suffix.lower() in INDEXABLE_EXTENSIONS
 
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE,
@@ -111,23 +115,25 @@ def index_paths(paths: list[str], recursive: bool = True,
             continue
         seen.add(resolved)
 
-        if not is_text_file(fp):
+        if not is_indexable(fp):
             continue
 
         stats["total_files"] += 1
+        content, file_type = extract_file(fp)
+
         doc_id = upsert_document(
             path=resolved,
             name=fp.name,
             extension=fp.suffix,
+            file_type=file_type,
         )
 
-        text = read_file(fp)
-        if not text.strip():
+        if not content.strip():
             set_document_status(doc_id, "skipped", "Empty file")
             stats["skipped"] += 1
             continue
 
-        chunks = chunk_text(text, chunk_size, chunk_overlap)
+        chunks = chunk_text(content, chunk_size, chunk_overlap)
         if not chunks:
             set_document_status(doc_id, "skipped", "No chunks produced")
             stats["skipped"] += 1

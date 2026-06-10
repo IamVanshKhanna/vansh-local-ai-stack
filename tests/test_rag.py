@@ -16,7 +16,7 @@ from db.rag_dal import (
     delete_document, insert_chunks, get_chunks, get_all_chunks,
     cosine_similarity, search_similar, get_chunk_count,
 )
-from index_docs import is_text_file, chunk_text, embed_text, read_file
+from index_docs import is_indexable, chunk_text, embed_text
 
 
 @pytest.fixture(autouse=True)
@@ -188,21 +188,23 @@ class TestChunking:
 # ── File helpers ─────────────────────────────────────────────────────
 
 class TestFileHelpers:
-    def test_is_text_file(self):
-        assert is_text_file(Path("file.py"))
-        assert is_text_file(Path("notes.md"))
-        assert is_text_file(Path("config.json"))
-        assert not is_text_file(Path("image.jpg"))
-        assert not is_text_file(Path("doc.pdf"))
-        assert not is_text_file(Path("archive.zip"))
+    def test_is_indexable(self):
+        assert is_indexable(Path("file.py"))
+        assert is_indexable(Path("notes.md"))
+        assert is_indexable(Path("config.json"))
+        assert is_indexable(Path("image.jpg"))
+        assert is_indexable(Path("doc.pdf"))
+        assert is_indexable(Path("paper.docx"))
+        assert not is_indexable(Path("archive.zip"))
+        assert not is_indexable(Path("binary.bin"))
 
-    def test_read_file(self, tmp_path):
+    def test_extract_text_file(self, tmp_path):
+        from extract_text import extract_file
         f = tmp_path / "test.txt"
         f.write_text("hello", encoding="utf-8")
-        assert read_file(f) == "hello"
-
-    def test_read_nonexistent(self, tmp_path):
-        assert read_file(tmp_path / "nope.txt") == ""
+        content, ftype = extract_file(f)
+        assert content == "hello"
+        assert ftype == "text"
 
 
 # ── Embedding API (mocked) ───────────────────────────────────────────

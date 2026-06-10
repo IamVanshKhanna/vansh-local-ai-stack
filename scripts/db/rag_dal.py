@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 # ── Documents ────────────────────────────────────────────────────────
 
 def upsert_document(path: str, name: str, extension: str = "",
+                    file_type: str = "text",
                     file_id: Optional[int] = None) -> int:
     with get_connection() as conn:
         existing = conn.execute(
@@ -21,15 +22,15 @@ def upsert_document(path: str, name: str, extension: str = "",
         if existing:
             doc_id = existing["id"]
             conn.execute(
-                """UPDATE documents SET status='pending', file_id=?, name=?, extension=?
-                   WHERE id=?""",
-                (file_id, name, extension, doc_id),
+                """UPDATE documents SET status='pending', file_id=?, name=?,
+                   extension=?, file_type=? WHERE id=?""",
+                (file_id, name, extension, file_type, doc_id),
             )
         else:
             cursor = conn.execute(
-                """INSERT INTO documents (path, name, extension, file_id)
-                   VALUES (?, ?, ?, ?)""",
-                (path, name, extension, file_id),
+                """INSERT INTO documents (path, name, extension, file_type, file_id)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (path, name, extension, file_type, file_id),
             )
             doc_id = cursor.lastrowid
         conn.commit()

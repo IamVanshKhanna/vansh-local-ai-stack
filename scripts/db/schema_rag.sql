@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS documents (
     path        TEXT NOT NULL,
     name        TEXT NOT NULL,
     extension   TEXT NOT NULL DEFAULT '',
+    file_type   TEXT NOT NULL DEFAULT 'text',
     file_id     INTEGER REFERENCES files(id) ON DELETE SET NULL,
     indexed_at  TEXT NOT NULL DEFAULT (datetime('now')),
     chunk_count INTEGER NOT NULL DEFAULT 0,

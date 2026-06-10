@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.4.0] — PDF, DOCX & Image RAG (2026-06-11)
+
+**Added:**
+- `scripts/extract_text.py` — unified text extraction dispatcher:
+  - `extract_pdf(path)` — text extraction via `pypdf`
+  - `extract_docx(path)` — paragraph extraction via `python-docx`
+  - `extract_image(path)` — OCR via `pytesseract` + `Pillow` (supports HEIC/HEIF iPhone format via `pillow-heif`)
+  - `extract_file(path)` → returns `(content, file_type)` dispatcher
+- `vls index` now supports PDF (`.pdf`), DOCX (`.docx`), and images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.tif`, `.webp`, `.heic`, `.heif`)
+- `file_type` column in `documents` table — tracks "text", "pdf", "docx", or "image"
+- Automatic Tesseract detection on Windows (common install paths)
+- Schema migration: adds `file_type` column to existing databases gracefully
+- 23 new tests covering all extraction paths, dispatch logic, error handling, and edge cases
+
+**Changed:**
+- `pyproject.toml`: version bumped to 1.4.0, 5 new dependencies (`pypdf`, `python-docx`, `pillow`, `pytesseract`, `pillow-heif`)
+- `scripts/setup.ps1`: installs Tesseract via winget (`UB-Mannheim.TesseractOCR`); caches model pull status (skips already-pulled models)
+- `scripts/index_docs.py`: `is_text_file()` → `is_indexable()`, `read_file()` → `extract_file()` dispatch
+- `tests/test_rag.py`: updated imports and assertions for renamed functions
+
+**Dependencies (new):**
+- `pypdf>=3.0.0`, `python-docx>=0.8.11`, `pillow>=9.0.0`, `pytesseract>=0.3.10`, `pillow-heif>=0.7.0`
+- System: Tesseract OCR installed via `winget install UB-Mannheim.TesseractOCR`
+
 ## [1.1.0] — setup.ps1 + Notifications
 
 **Added:**
@@ -66,33 +90,6 @@
   also removed double GB-to-bytes conversion
 - `scripts/setup.ps1`: added `ExpandEnvironmentVariables()` call on XML
   before `schtasks /create` to resolve `%USERDOMAIN%\%USERNAME%` at runtime
-
-## [1.2.0] — Task Scheduler Automation
-
-**Added:**
-- `config/tasks/daily-health-check.xml` — runs `vls doctor` daily at 8am
-- `config/tasks/weekly-disk-report.xml` — runs `vls report` Sundays at 9am
-- `config/tasks/monthly-catalog-backup.xml` — backups catalog.db on 1st of month at 10am
-- `setup.ps1 -ScheduleTasks`: admin check, auto-registers all 3 tasks via schtasks
-- All task XMLs use `%USERPROFILE%` for portable paths (no hardcoded user)
-- Tasks run on battery or AC, start if missed, 30-min timeout
-
-## [1.1.0] — setup.ps1 + Notifications
-
-**Added:**
-- `scripts/setup.ps1` — idempotent one-command setup:
-  - Checks prerequisites (Python, winget, NVIDIA GPU)
-  - Installs Ollama via winget if missing
-  - Pulls 3 models (llama3.2, deepseek-coder-v2:lite, nomic-embed-text)
-  - Creates Python venv at `~/.local-ai-stack/venv`
-  - Installs deps via `pip install -e .`
-  - Copies `.env.example` → `.env` if not exists
-  - Creates data directories (logs, reports, catalogs, backups)
-  - Sets `OLLAMA_KEEP_ALIVE=0` (zero-idle)
-  - Optional `-ScheduleTasks` flag for Windows Task Scheduler
-  - Runs `vls doctor` to verify
-- `vls doctor` now sends Windows toast on warnings/fails
-- `vls doctor` optionally sends email (if SMTP configured in `.env`)
 
 ## [1.0.0] — Scenario B Baseline
 

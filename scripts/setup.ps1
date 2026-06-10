@@ -113,20 +113,47 @@ if (-not $SkipOllama) {
         Write-Warn "Could not set persistent OLLAMA_KEEP_ALIVE"
     }
 
-    # Pull models
+    # Pull models (skip if already present — idempotent)
+    $installed = @()
+    try {
+        $list = ollama list 2>&1
+        $installed = ($list | Select-String -Pattern "^\S+" -AllMatches).Matches.Value
+    } catch {}
+
     $models = @("llama3.2", "deepseek-coder-v2:lite", "nomic-embed-text")
     foreach ($model in $models) {
-        Write-Host "  Pulling $model..." -NoNewline
-        try {
-            $result = ollama pull $model 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host " done" -ForegroundColor Green
-            } else {
-                Write-Host " failed ($result)" -ForegroundColor Red
+        $modelName = $model.Split(":")[0]
+        if ($installed -contains $modelName) {
+            Write-OK "$model already pulled"
+        } else {
+            Write-Host "  Pulling $model..." -NoNewline
+            try {
+                $result = ollama pull $model 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host " done" -ForegroundColor Green
+                } else {
+                    Write-Host " failed ($result)" -ForegroundColor Red
+                }
+            } catch {
+                Write-Host " error ($_)" -ForegroundColor Red
             }
-        } catch {
-            Write-Host " error ($_)" -ForegroundColor Red
         }
+    }
+
+    # ── Tesseract OCR (for image RAG) ──────────────────────────────
+    Write-Step "Tesseract OCR"
+
+    $tesseractOk = Test-Command "tesseract"
+    if (-not $tesseractOk) {
+        Write-Host "  Installing Tesseract via winget..."
+        try {
+            winget install --silent --accept-package-agreements UB-Mannheim.TesseractOCR 2>&1 | Out-Null
+            Write-OK "Tesseract installed"
+        } catch {
+            Write-Warn "Could not install Tesseract. Download from https://github.com/UB-Mannheim/tesseract/wiki"
+        }
+    } else {
+        Write-OK "Tesseract already installed"
     }
 } else {
     Write-OK "Skipped Ollama (--SkipOllama)"
