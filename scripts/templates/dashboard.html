@@ -269,7 +269,7 @@ async function refreshResources() {
     let ramSub = (r.ram ? r.ram.used_gb.toFixed(1) : '?') + ' GB / ' + (r.ram ? r.ram.total_gb.toFixed(1) : '?') + ' GB  |  ' + ram.toFixed(0) + '% used';
     let gpuName = r.gpu && r.gpu.name ? r.gpu.name : 'GPU';
     let gpuTemp = r.gpu && r.gpu.gpu_temp ? r.gpu.gpu_temp + '°C' : '?°C';
-    let gpuPower = r.gpu && r.gpu.power_watts ? r.gpu.power_watts.toFixed(1) + 'W' : '?W';
+    let gpuPower = r.gpu && r.gpu.power_watts ? 'GPU: ' + r.gpu.power_watts.toFixed(1) + 'W' : 'GPU: ?W';
     let gpuVram = (r.gpu && r.gpu.memory_used_mb ? (r.gpu.memory_used_mb / 1024).toFixed(1) : '?') + '/' + (r.gpu && r.gpu.memory_total_mb ? (r.gpu.memory_total_mb / 1024).toFixed(1) : '?') + ' GB VRAM';
     let gpuSub = gpuName + '  |  ' + gpuUtil + '% util  |  ' + gpuTemp + '  |  ' + gpuPower + '  |  ' + gpuVram;
 
@@ -296,6 +296,18 @@ async function refreshResources() {
         html += '<div style="margin-top:6px;padding-top:6px;border-top:1px solid #21262d;display:flex;gap:4px;flex-wrap:wrap">';
         r.ollama.models.forEach(m => { html += '<span class="ollama-tag">' + (m.name || '?') + ': ' + (m.memory_mb || 0) + ' MB</span> ' });
         html += '</div>';
+      }
+      let p = r.power;
+      if (p) {
+        let pCpu = r.cpu && r.cpu.power_watts ? 'CPU: ~' + r.cpu.power_watts + 'W' : '';
+        let pGpu = p.gpu_watts ? 'GPU: ' + p.gpu_watts + 'W' : '';
+        let pRam = p.ram_watts ? 'RAM: ' + p.ram_watts + 'W' : '';
+        let pMobo = p.motherboard_watts ? 'Mobo: ' + p.motherboard_watts + 'W' : '';
+        let pTotal = p.total_watts ? 'Total: ~' + p.total_watts + 'W' : '';
+        let parts = [pCpu, pGpu, pRam, pMobo, pTotal].filter(Boolean);
+        if (parts.length) {
+          html += '<div style="margin-top:6px;padding-top:6px;border-top:1px solid #21262d;display:flex;gap:4px;flex-wrap:wrap;font-size:11px;color:#8b949e"><span style="font-weight:500">&#9889; Power:</span> ' + parts.join('  |  ') + '</div>';
+        }
       }
       footer.innerHTML = html + '</div>';
     }
