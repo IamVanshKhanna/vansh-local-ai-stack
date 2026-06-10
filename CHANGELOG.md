@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.0.0] — UX Overhaul: Menu, Organize, Report, Ask (2026-06-11)
+
+**Added:**
+- `vls` (no args) — interactive numbered menu (press 1-5, no commands to remember)
+- `vls organize <folder>` — one-command file cleanup (scan→classify→plan→apply in one step)
+- `vls --ask "what you want"` — natural language mode (type English, LLM interprets and runs the right command)
+- Better `vls report` — shows visual usage bars, temp file count/size, largest files in Temp and Downloads
+- Better `vls index` — validates paths exist before indexing, clearer error messages
+
+**Changed:**
+- `vls.py`: major UX overhaul — menu system, organize orchestrator, ask interpreter, improved report
+- `pyproject.toml`: version bumped to 2.0.0
+
+**Removed:**
+- The old 4-step pipeline (scan→classify→generate→apply) still works but is superseded by `vls organize`
+
+**How to use:**
+- Just type `vls` and press Enter → menu appears
+- `vls organize ~/Downloads` → categorize and organize your Downloads folder
+- `vls --ask "how full is my disk"` → plain English query
+- All old commands still work (`vls doctor`, `vls index`, `vls query`, etc.)
+
 ## [1.4.0] — PDF, DOCX & Image RAG (2026-06-11)
 
 **Added:**
