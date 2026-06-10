@@ -91,12 +91,13 @@ def validate_moves(moves: list[dict], force: bool = False) -> list[dict]:
 
         # Check destination parent exists
         if not dst.parent.exists():
-            issues.append({
-                "source": str(src),
-                "issue": "destination_parent_missing",
-                "message": f"Destination directory does not exist: {dst.parent}",
-            })
-            continue
+            if not force:
+                issues.append({
+                    "source": str(src),
+                    "issue": "destination_parent_missing",
+                    "message": f"Destination directory does not exist: {dst.parent}",
+                })
+                continue
 
         # Check destination conflict
         if dst.exists() and not force:

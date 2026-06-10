@@ -50,6 +50,15 @@
 - No new pip dependencies — uses Ollama HTTP API for both embeddings and generation
 - No Docker, no cloud, no always-running services
 
+## [1.3.1] — UX Fixes (2026-06-10)
+
+**Fixed:**
+- `vls apply --force` now auto-creates missing destination directories
+  (previously skipped files with "destination directory does not exist")
+- `setup.ps1 -ScheduleTasks` no longer shows misleading admin warning
+  (env var expansion made admin unnecessary)
+- `vls apply --help` now documents `--force` behaviour
+
 ## [1.2.1] — Bug Fixes (2026-06-10)
 
 **Fixed:**

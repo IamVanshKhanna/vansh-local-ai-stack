@@ -253,7 +253,8 @@ def main() -> None:
     app_p = sub.add_parser("apply", help="Apply move plans")
     app_p.add_argument("--plan", "-p", required=True)
     app_p.add_argument("--execute", action="store_true")
-    app_p.add_argument("--force", action="store_true")
+    app_p.add_argument("--force", action="store_true",
+                       help="Overwrite existing files and auto-create destination directories")
     app_p.add_argument("--operation", choices=["move", "copy"], default="move")
     app_p.set_defaults(func=_apply)
 

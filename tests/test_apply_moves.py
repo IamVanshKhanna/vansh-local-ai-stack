@@ -39,6 +39,25 @@ class TestValidateMoves:
         assert len(issues) == 1
         assert issues[0]["issue"] == "destination_exists"
 
+    def test_destination_parent_missing_no_force(self, tmp_path):
+        src = tmp_path / "source.txt"
+        src.write_text("content")
+        dst = tmp_path / "nonexistent_subdir" / "dest.txt"
+
+        moves = [{"source": str(src), "destination": str(dst), "size": 7}]
+        issues = validate_moves(moves, force=False)
+        assert len(issues) == 1
+        assert issues[0]["issue"] == "destination_parent_missing"
+
+    def test_destination_parent_missing_with_force(self, tmp_path):
+        src = tmp_path / "source.txt"
+        src.write_text("content")
+        dst = tmp_path / "nonexistent_subdir" / "dest.txt"
+
+        moves = [{"source": str(src), "destination": str(dst), "size": 7}]
+        issues = validate_moves(moves, force=True)
+        assert len(issues) == 0
+
     def test_destination_exists_with_force(self, tmp_path):
         src = tmp_path / "source.txt"
         src.write_text("content")

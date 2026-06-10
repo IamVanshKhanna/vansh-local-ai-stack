@@ -187,13 +187,6 @@ if ($ScheduleTasks) {
 
     $tasksDir = "$ProjectRoot\config\tasks"
 
-    # Check admin — schtasks /create often needs it
-    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-    if (-not $isAdmin) {
-        Write-Warn "Task registration may require Administrator privileges"
-        Write-Host "  Re-run: Start-Process powershell -Verb RunAs -Args '-File ""$PSCommandPath"" -ScheduleTasks'"
-    }
-
     if (Test-Path $tasksDir) {
         $taskFiles = Get-ChildItem "$tasksDir\*.xml" -ErrorAction SilentlyContinue
         if ($taskFiles) {
