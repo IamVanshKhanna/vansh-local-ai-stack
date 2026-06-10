@@ -117,6 +117,34 @@ def _apply(args: argparse.Namespace) -> None:
     print(f"Results: {results['success']} success, {results['failed']} failed, {results['skipped']} skipped")
 
 
+def _index(args: argparse.Namespace) -> None:
+    from index_docs import index_paths
+
+    stats = index_paths(
+        paths=args.paths,
+        recursive=args.recursive,
+        chunk_size=args.chunk_size,
+        chunk_overlap=args.chunk_overlap,
+    )
+    print(f"Indexed {stats['indexed']} files ({stats['total_chunks']} chunks), "
+          f"{stats['skipped']} skipped, {stats['failed']} failed")
+
+
+def _query(args: argparse.Namespace) -> None:
+    from rag_query import query
+
+    result = query(
+        query=args.query,
+        top_k=args.top_k,
+        llm_model=args.model,
+    )
+    print(f"\nAnswer: {result['answer']}\n")
+    if result["sources"]:
+        print("Sources:")
+        for s in result["sources"]:
+            print(f"  [{s['score']:.2f}] {s['name']}")
+
+
 def _report(args: argparse.Namespace) -> None:
     from disk_report import generate_report
     from utils import format_size
@@ -228,6 +256,26 @@ def main() -> None:
     app_p.add_argument("--force", action="store_true")
     app_p.add_argument("--operation", choices=["move", "copy"], default="move")
     app_p.set_defaults(func=_apply)
+
+    # index
+    idx_p = sub.add_parser("index", help="Index documents for RAG search")
+    idx_p.add_argument("--paths", "-p", nargs="+", required=True,
+                       help="Files or directories to index")
+    idx_p.add_argument("--recursive", action="store_true", default=True)
+    idx_p.add_argument("--chunk-size", type=int, default=2048,
+                       help="Character chunk size (default: 2048)")
+    idx_p.add_argument("--chunk-overlap", type=int, default=256,
+                       help="Character overlap between chunks (default: 256)")
+    idx_p.set_defaults(func=_index)
+
+    # query
+    qry_p = sub.add_parser("query", help="Ask questions about indexed documents")
+    qry_p.add_argument("query", help="Natural language question")
+    qry_p.add_argument("--top-k", type=int, default=5,
+                       help="Number of context chunks (default: 5)")
+    qry_p.add_argument("--model", default="llama3.2",
+                       help="LLM model for answering (default: llama3.2)")
+    qry_p.set_defaults(func=_query)
 
     # report
     rep_p = sub.add_parser("report", help="Disk usage report")

@@ -27,6 +27,29 @@
 - All task XMLs use `%USERPROFILE%` for portable paths (no hardcoded user)
 - Tasks run on battery or AC, start if missed, 30-min timeout
 
+## [1.3.0] — RAG Pipeline (2026-06-10)
+
+**Added:**
+- `vls index` — index text files for semantic search:
+  - Reads .txt, .md, .py, .js, .ts, .json, .yaml, .csv, and 20+ text formats
+  - Chunks content with configurable size/overlap (default 2048/256 chars)
+  - Generates embeddings via Ollama (`nomic-embed-text`)
+  - Stores in SQLite (`documents` + `chunks` tables with vector search)
+- `vls query` — ask natural language questions about indexed documents:
+  - Embeds query, finds top-k similar chunks via cosine similarity
+  - Builds context prompt and answers via Ollama (`llama3.2`)
+  - Shows source documents with relevance scores
+- `scripts/db/schema_rag.sql` — new DB tables for documents and chunk embeddings
+- `scripts/db/rag_dal.py` — DAL for RAG operations + pure-Python cosine similarity
+- `scripts/index_docs.py` — document ingestion pipeline
+- `scripts/rag_query.py` — retrieval-augmented generation query engine
+- `config/.env.example` — added `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP`, `RAG_TOP_K`
+- 28 new tests covering docs, chunks, similarity search, chunking, embedding API, and CLI integration
+
+**Changed:**
+- No new pip dependencies — uses Ollama HTTP API for both embeddings and generation
+- No Docker, no cloud, no always-running services
+
 ## [1.2.1] — Bug Fixes (2026-06-10)
 
 **Fixed:**
@@ -79,7 +102,3 @@
 - `.bolt/` config removed
 
 ## Planned
-
-### [1.3.0]
-- RAG pipeline (document search via nomic-embed-text)
-- Notification hooks (Windows toast, optional email)
