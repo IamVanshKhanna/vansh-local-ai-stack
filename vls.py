@@ -136,6 +136,53 @@ def _health(args: argparse.Namespace) -> None:
         print(f"  {name}: {check['status']}")
 
 
+def _doctor(args: argparse.Namespace) -> None:
+    """Run all health checks and print a clear summary."""
+    from health_check import check_ollama, check_gpu, check_ram, check_disk, check_scripts
+    from dotenv import load_dotenv
+    import os
+
+    load_dotenv()
+
+    checks = {
+        "ollama": check_ollama(),
+        "gpu": check_gpu(),
+        "ram": check_ram(),
+        "disk": check_disk(),
+        "scripts": check_scripts(),
+    }
+
+    all_ok = True
+    for name, result in checks.items():
+        status = result.get("status", "fail")
+        symbol = {"pass": "PASS", "warning": "WARN", "fail": "FAIL"}.get(status, "???")
+        detail = ""
+        if name == "ollama" and status == "pass":
+            detail = f" ({result['models_available']} models loaded)"
+        elif name == "gpu" and status == "pass":
+            gpu = result.get("gpus", [{}])[0]
+            detail = f" - {gpu.get('name', 'N/A')} ({gpu.get('memory_free', '?')} free)"
+        elif name == "ram" and status == "pass":
+            detail = f" ({result.get('available_gb', '?')} GB available)"
+        elif name == "disk" and status == "pass":
+            detail = f" ({result.get('free_gb', '?')} GB free)"
+        elif status == "fail":
+            all_ok = False
+            detail = f" - {result.get('error', result.get('note', 'unknown error'))}"
+        elif status == "warning":
+            all_ok = False
+            detail = f" - {result.get('error', result.get('alert', result.get('note', 'warning')))})"
+
+        print(f"  [{symbol}] {name}{detail}")
+
+    print("")
+    if all_ok:
+        print("  All checks passed -- system is healthy")
+    else:
+        print("  Some checks need attention -- review warnings above")
+        exit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="vls")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -177,9 +224,13 @@ def main() -> None:
     rep_p.set_defaults(func=_report)
 
     # health
-    hlt_p = sub.add_parser("health", help="Health checks")
+    hlt_p = sub.add_parser("health", help="Run specific health checks")
     hlt_p.add_argument("--checks", nargs="+", default=["disk", "ram", "ollama", "scripts"])
     hlt_p.set_defaults(func=_health)
+
+    # doctor
+    doc_p = sub.add_parser("doctor", help="Full system health summary")
+    doc_p.set_defaults(func=_doctor)
 
     args = parser.parse_args()
     args.func(args)

@@ -1,38 +1,30 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## [1.0.0] — Scenario B Baseline
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+**Breaking changes from 0.1.0:**
+- Repo stripped to B essentials (~60 files → ~35)
+- All 10 docs/ and n8n config removed (superseded by SETUP.md)
+- `pyproject.toml` backend fixed to `setuptools.build_meta`
+- Dependencies trimmed to B core (removed langchain, chromadb, docx, lxml)
+- CI now runs Windows + Ubuntu matrix on Python 3.11 + 3.12
+- GPU check rewritten for NVIDIA (was stubbed for AMD)
+- Added `vls doctor` — one-command system health summary
+- Added `setup.ps1` — single-script setup automation
+- `scripts/requirements.txt` merged into top-level
+- `__pycache__` removed from git tracking
+- Placeholder npm files removed
+- `.bolt/` config removed
 
-## [0.1.0] - 2024-01-XX
+## Planned
 
-### Added
-- Initial repository structure
-- Core documentation suite (architecture, phases, models, automation)
-- Python automation scripts:
-  - `scan_drives.py` - Filesystem scanning and cataloging
-  - `classify_files.py` - Intelligent file categorization
-  - `apply_moves.py` - Safe file reorganization
-  - `disk_report.py` - Storage analysis reports
-  - `health_check.py` - System health verification
-- Configuration templates and setup guides
-- Windows Task Scheduler integration notes
-- n8n automation guidance
+### [1.1.0]
+- setup.ps1: fully idempotent, auto-imports scheduled tasks
+- vls doctor: notification support (toast + email)
 
-### Documentation
-- README with quick start guide
-- Architecture overview with component diagrams
-- Phased implementation roadmap
-- Model selection criteria for local inference
-- Automation patterns and best practices
+### [1.2.0]
+- Windows Task Scheduler .xml exports
+- Automated daily health check, weekly disk report, monthly backup
 
-## [Unreleased]
-
-### Planned
-- RAG pipeline with ChromaDB/Qdrant
-- Voice input via Whisper
-- Agent patterns (Hermes-style)
-- n8n workflow templates
-- Open WebUI alternative setup
-- Phone/cloud integration options
+### [1.3.0]
+- Notification hooks (Windows toast, optional email)

@@ -1,25 +1,20 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "vansh-local-ai-stack"
-version = "0.1.0"
-description = "A lightweight, modular local AI workspace for coding, automation, and personal knowledge"
+version = "1.0.0"
+description = "Lightweight local AI automation toolkit for Windows — Ollama + Python CLI"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
-keywords = ["local-ai", "ollama", "automation", "rag"]
+keywords = ["local-ai", "ollama", "automation"]
 
 dependencies = [
     "requests>=2.28.0",
     "python-dotenv>=1.0.0",
     "psutil>=5.9.0",
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0",
 ]
 
 [project.scripts]

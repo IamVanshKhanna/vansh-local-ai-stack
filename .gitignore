@@ -26,5 +26,9 @@ dist-ssr
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+*.pyo
 .pytest_cache/
 *.egg-info/
+.venv/
+venv/

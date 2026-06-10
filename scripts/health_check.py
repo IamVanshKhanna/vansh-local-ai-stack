@@ -73,67 +73,67 @@ def check_ollama(host: Optional[str] = None) -> dict:
 
 
 def check_gpu() -> dict:
-    """Check GPU availability and status."""
+    """Check GPU availability and status via nvidia-smi."""
     system = platform.system()
 
     try:
-        if system == "Windows":
-            # Try NVIDIA first
-            try:
-                import subprocess
-                result = subprocess.run(
-                    ["nvidia-smi", "--query-gpu=name,memory.total,memory.used,memory.free", "--format=csv,noheader"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
+        import subprocess
 
-                if result.returncode == 0:
-                    lines = result.stdout.strip().split("\n")
-                    gpus = []
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name,memory.total,memory.used,memory.free", "--format=csv,noheader"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
 
-                    for line in lines:
-                        parts = [p.strip() for p in line.split(",")]
-                        if len(parts) >= 4:
-                            gpus.append({
-                                "name": parts[0],
-                                "memory_total": parts[1],
-                                "memory_used": parts[2],
-                                "memory_free": parts[3],
-                            })
-
-                    return {
-                        "status": "pass",
-                        "vendor": "nvidia",
-                        "gpus": gpus,
-                    }
-            except Exception:
-                pass
-
-            # Try AMD if NVIDIA not found
-            # AMD requires different tool (rocm-smi or ADL)
+        if result.returncode != 0:
             return {
-                "status": "pass",
-                "vendor": "unknown",
-                "note": "GPU detected but details unavailable (may be AMD)",
+                "status": "fail",
+                "vendor": "none",
+                "note": "nvidia-smi not found — GPU check requires NVIDIA drivers",
             }
 
-        else:  # Linux/macOS
-            # Try nvidia-smi
+        lines = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
+        gpus = []
+
+        for line in lines:
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) >= 4:
+                gpus.append({
+                    "name": parts[0],
+                    "memory_total": parts[1],
+                    "memory_used": parts[2],
+                    "memory_free": parts[3],
+                })
+
+        if not gpus:
+            return {"status": "fail", "vendor": "none", "note": "No NVIDIA GPUs found"}
+
+        status = "pass"
+        for gpu in gpus:
+            used_str = gpu["memory_used"].split()[0] if " " in gpu["memory_used"] else "0"
+            total_str = gpu["memory_total"].split()[0]
             try:
-                import subprocess
-                result = subprocess.run(["nvidia-smi"], capture_output=True, timeout=5)
-                if result.returncode == 0:
-                    return {"status": "pass", "vendor": "nvidia"}
-            except Exception:
+                used = int(used_str.replace(",", ""))
+                total = int(total_str.replace(",", ""))
+                if total > 0 and used / total > 0.95:
+                    status = "warning"
+                    gpu["alert"] = "VRAM > 95% utilized"
+            except ValueError:
                 pass
 
-            return {
-                "status": "pass",
-                "vendor": "unknown",
-                "note": "GPU status check not implemented for this platform",
-            }
+        return {
+            "status": status,
+            "vendor": "nvidia",
+            "gpus": gpus,
+        }
 
+    except FileNotFoundError:
+        return {
+            "status": "fail",
+            "vendor": "none",
+            "note": "nvidia-smi not found — install NVIDIA GPU drivers",
+        }
     except Exception as e:
         return {
             "status": "fail",
