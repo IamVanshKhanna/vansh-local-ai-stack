@@ -22,6 +22,8 @@ dist-ssr
 *.sw?
 .env
 
+*.db
+
 # Python
 __pycache__/
 *.pyc
