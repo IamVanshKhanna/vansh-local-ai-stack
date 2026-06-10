@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vansh-local-ai-stack"
-version = "2.0.0"
+version = "2.2.0"
 description = "Lightweight local AI automation toolkit for Windows — Ollama + Python CLI"
 readme = "README.md"
 license = "MIT"
@@ -20,6 +20,8 @@ dependencies = [
     "pillow>=9.0.0",
     "pytesseract>=0.3.10",
     "pillow-heif>=0.7.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
 ]
 
 [project.scripts]

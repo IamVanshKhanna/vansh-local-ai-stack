@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hermes Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d1117;color:#c9d1d9;padding:20px}
+h1{font-size:22px;font-weight:600}
+h2{font-size:16px;font-weight:500;margin-bottom:8px;color:#8b949e}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;margin-bottom:16px}
+.bar-bg{background:#21262d;border-radius:4px;height:12px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .6s ease,background .6s ease}
+.bar-fill.green{background:linear-gradient(90deg,#2ea043,#3fb950)}
+.bar-fill.yellow{background:linear-gradient(90deg,#bb8009,#d29922)}
+.bar-fill.red{background:linear-gradient(90deg,#da3633,#f85149)}
+.bar-fill.blue{background:linear-gradient(90deg,#1f6feb,#58a6ff)}
+.bar-fill.purple{background:linear-gradient(90deg,#8957e5,#a371f7)}
+.resource-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.resource-card{background:#1c2128;border:1px solid #30363d;border-radius:8px;padding:14px;position:relative;transition:border-color .2s,transform .2s,box-shadow .2s}
+.resource-card:hover{border-color:#8b949e;transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.resource-card .rc-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.resource-card .rc-label{font-size:11px;text-transform:uppercase;color:#8b949e;font-weight:500;letter-spacing:.5px}
+.resource-card .rc-value{font-size:20px;font-weight:700}
+.resource-card .rc-sub{font-size:11px;color:#8b949e;margin-top:2px}
+.resource-card .rc-bar{margin:6px 0 2px}
+.rc-row{display:flex;justify-content:space-between;font-size:12px;color:#8b949e;margin:2px 0}
+.rc-gpu-mem{margin-top:8px;padding-top:8px;border-top:1px solid #21262d}
+.rc-gpu-mem .rc-label{font-size:10px}
+.header-bar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.header-left{display:flex;align-items:center;gap:12px}
+.header-right{display:flex;align-items:center;gap:16px;font-size:12px;color:#8b949e}
+.live-dot{width:10px;height:10px;border-radius:50%;background:#3fb950;display:inline-block;animation:pulse 2s infinite}
+.live-dot.error{background:#f85149;animation:none}
+.live-dot.stale{background:#d29922;animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,185,80,.6)}70%{box-shadow:0 0 0 6px rgba(63,185,80,0)}100%{box-shadow:0 0 0 0 rgba(63,185,80,0)}}
+.status-badge{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:500}
+.status-badge.ok{background:#2ea04322;color:#3fb950;border:1px solid #2ea04344}
+.status-badge.warn{background:#d2992222;color:#d29922;border:1px solid #d2992244}
+.status-badge.fail{background:#f8514922;color:#f85149;border:1px solid #f8514944}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.btn{background:#21262d;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;padding:10px 20px;font-size:14px;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px;user-select:none}
+.btn:hover{background:#30363d;border-color:#8b949e}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.primary{background:#238636;border-color:#2ea043}
+.btn.primary:hover:not(:disabled){background:#2ea043}
+.btn.danger{background:#da3633;border-color:#f85149}
+.btn.danger:hover:not(:disabled){background:#f85149}
+.btn.small{padding:6px 12px;font-size:12px}
+#result{margin-top:8px;font-size:13px;line-height:1.5;white-space:pre-wrap}
+#result table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+#result th,#result td{text-align:left;padding:6px 8px;border-bottom:1px solid #21262d}
+#result th{color:#8b949e;font-weight:500}
+#result .section-title{font-size:14px;font-weight:600;color:#c9d1d9;margin:12px 0 6px;display:flex;align-items:center;gap:6px}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.status-dot.pass{background:#3fb950}
+.status-dot.warn{background:#d29922}
+.status-dot.fail{background:#f85149}
+.status-dot.empty{background:#30363d}
+input[type=text],select{background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#c9d1d9;padding:8px 12px;font-size:14px;width:100%;margin-bottom:8px}
+input[type=text]:focus,select:focus{outline:none;border-color:#58a6ff}
+select{cursor:pointer;appearance:auto}
+.ollama-tag{display:inline-block;background:#1f6feb22;color:#58a6ff;border:1px solid #1f6feb44;border-radius:4px;padding:2px 6px;font-size:11px;margin:2px}
+.loading{color:#8b949e;font-style:italic}
+.error{color:#f85149}
+.success{color:#3fb950}
+.source-item{background:#21262d;border-radius:4px;padding:6px 8px;margin:4px 0;font-size:12px}
+.source-score{color:#d29922;font-weight:600}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid #30363d;border-top-color:#58a6ff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.index-badge{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:12px}
+.index-badge .pill{background:#1f6feb22;border:1px solid #1f6feb44;border-radius:12px;padding:3px 10px;color:#58a6ff}
+.index-badge .pill.empty{background:#21262d;border-color:#30363d;color:#8b949e}
+.scope-card{background:#21262d;border:1px solid #30363d;border-radius:8px;padding:12px;margin-bottom:12px}
+.scope-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.scope-row select{width:auto;min-width:140px;margin-bottom:0}
+.scope-row input[type=text]{width:auto;flex:1;min-width:160px;margin-bottom:0}
+.cluster-box{background:#21262d;border:1px solid #30363d;border-radius:6px;padding:10px;margin:6px 0}
+.cluster-box label{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px}
+.cluster-box input[type=checkbox]{width:16px;height:16px;accent-color:#58a6ff}
+.preserve-note{color:#8b949e;font-size:11px;margin-left:24px}
+.toast{position:fixed;bottom:20px;right:20px;padding:10px 16px;border-radius:8px;font-size:13px;z-index:999;animation:fadeIn .3s ease;max-width:400px}
+.toast.info{background:#1f6feb;color:#fff}
+.toast.success{background:#2ea043;color:#fff}
+.toast.error{background:#da3633;color:#fff}
+.toast.warn{background:#bb8009;color:#fff}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.toast-out{animation:fadeOut .3s ease forwards}
+@keyframes fadeOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(10px)}}
+.process-panel{max-height:200px;overflow-y:auto}
+.process-row{display:flex;justify-content:space-between;padding:3px 4px;border-bottom:1px solid #21262d;font-size:12px;border-radius:2px;transition:background .15s}
+.process-row:nth-child(even){background:#1c2128}
+.process-row:hover{background:#21262d}
+.process-row:last-child{border-bottom:none}
+.process-row .p-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;flex:1}
+.process-row .p-mem{font-weight:500;min-width:60px;text-align:right;margin-left:8px}
+.process-row.heavy{color:#f85149}
+.process-row.moderate{color:#d29922}
+.result-card{background:#1c2128;border:1px solid #30363d;border-radius:8px;padding:12px;margin-top:8px}
+.result-card .rc-title{font-size:13px;font-weight:600;margin-bottom:6px;color:#c9d1d9}
+.tab-bar{display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid #30363d;padding-bottom:0}
+.tab-btn{background:none;border:none;border-bottom:2px solid transparent;color:#8b949e;padding:8px 14px;font-size:13px;cursor:pointer;transition:all .2s}
+.tab-btn:hover{color:#c9d1d9}
+.tab-btn.active{color:#58a6ff;border-bottom-color:#58a6ff}
+@media(max-width:768px){
+  body{padding:12px}
+  .resource-grid{grid-template-columns:1fr}
+  .btn-row{flex-direction:column}
+  .btn{width:100%;justify-content:center}
+  .scope-row{flex-direction:column}
+  .scope-row select,.scope-row input[type=text]{width:100%}
+  .header-bar{flex-direction:column;align-items:flex-start}
+  .header-right{flex-wrap:wrap;gap:8px}
+  .process-row .p-name{max-width:120px}
+}
+</style>
+</head>
+<body>
+
+<div class="header-bar">
+  <div class="header-left">
+    <h1>Hermes Dashboard</h1>
+    <span class="live-dot" id="liveDot" title="Connected"></span>
+  </div>
+  <div class="header-right">
+    <span id="statusSummary"><span class="status-badge ok">All systems OK</span></span>
+    <span id="refreshTime">-</span>
+  </div>
+</div>
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <h2 style="margin:0">System Resources</h2>
+    <span style="font-size:11px;color:#8b949e">refreshes every 3s</span>
+  </div>
+  <div class="resource-grid" id="resourceGrid"></div>
+  <div id="resourceFooter" style="margin-top:8px"></div>
+</div>
+
+<div class="btn-row" id="buttons">
+  <button class="btn primary" onclick="runDoctor()" id="btnDoctor">&#9881; Doctor</button>
+  <button class="btn" onclick="runReport()" id="btnReport">&#128202; Report</button>
+  <button class="btn" onclick="showOrganize()" id="btnOrganize">&#128193; Organize</button>
+  <button class="btn" onclick="showSearch()" id="btnSearch">&#128269; Search</button>
+  <button class="btn" onclick="showIndex()" id="btnIndex">&#128451; Index</button>
+</div>
+
+<div id="inputArea" style="display:none;margin-bottom:12px"></div>
+<div class="card" id="resultArea" style="display:none"><div id="result"></div></div>
+<div id="toastContainer" style="position:fixed;bottom:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:6px"></div>
+
+<script>
+let resTimer, orgMoves = [], busy = false, preserveFolders = [], _wrapErr = null;
+let _lastRefresh = null, _refreshFailCount = 0;
+
+function allBtns(d) { try { document.querySelectorAll('.btn-row .btn').forEach(b => b.disabled = d) } catch(e) {} }
+
+function $(id) { return document.getElementById(id) }
+
+function toast(msg, type) {
+  type = type || 'info';
+  const c = $('toastContainer');
+  if (!c) return;
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.className += ' toast-out'; setTimeout(() => t.remove(), 300) }, 4000);
+}
+
+function showStatus(msg) {
+  const r = $('result');
+  if (r) r.innerHTML = '<span class="spinner"></span> <span class="loading"> ' + msg + '</span>';
+  const ra = $('resultArea');
+  if (ra) ra.style.display = 'block';
+}
+
+function showError(msg) {
+  const r = $('result');
+  if (r) r.innerHTML = '<span class="error">' + msg + '</span>';
+  const ra = $('resultArea');
+  if (ra) ra.style.display = 'block';
+}
+
+function clearInput() {
+  const ia = $('inputArea');
+  if (ia) { ia.style.display = 'none'; ia.innerHTML = '' }
+}
+
+async function api(url, body) {
+  const r = await fetch(url, body ? {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)} : {});
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function wrap(fn) {
+  if (busy) { toast('Already running an action', 'warn'); return }
+  busy = true;
+  try {
+    allBtns(true);
+    if (resTimer) { clearInterval(resTimer); resTimer = null }
+    await fn();
+  } catch(e) {
+    _wrapErr = e;
+    console.error('wrap error:', e);
+    try { showError(e.message || String(e)); toast(e.message || 'Action failed', 'error') } catch(_) {}
+  } finally {
+    busy = false;
+    try { allBtns(false) } catch(_) {}
+    if (!resTimer) {
+      try { resTimer = setInterval(refreshResources, 3000) } catch(_) {}
+    }
+  }
+}
+
+function makeResourceCard(id, label, value, sub, barPct, barClass, extra) {
+  let html = '<div class="resource-card">';
+  html += '<div class="rc-header"><span class="rc-label">' + label + '</span><span class="rc-value" id="' + id + 'Val">' + value + '</span></div>';
+  html += '<div class="rc-bar"><div class="bar-bg"><div class="bar-fill ' + barClass + '" id="' + id + 'Bar" style="width:' + barPct + '%"></div></div></div>';
+  html += '<div class="rc-sub" id="' + id + 'Sub">' + sub + '</div>';
+  if (extra) html += extra;
+  return html + '</div>';
+}
+
+function updateLiveDot(state) {
+  const dot = $('liveDot');
+  if (!dot) return;
+  dot.className = 'live-dot' + (state === 'error' ? ' error' : state === 'stale' ? ' stale' : '');
+}
+
+function updateRefreshTime() {
+  const el = $('refreshTime');
+  if (!el) return;
+  if (_lastRefresh) {
+    const secs = Math.round((Date.now() - _lastRefresh) / 1000);
+    el.textContent = 'Last refresh: ' + (secs < 60 ? secs + 's ago' : Math.floor(secs / 60) + 'm ago');
+  } else {
+    el.textContent = 'Waiting for data...';
+  }
+}
+
+async function refreshResources() {
+  try {
+    const r = await api('/api/resources');
+    _lastRefresh = Date.now();
+    _refreshFailCount = 0;
+    updateLiveDot('ok');
+    updateRefreshTime();
+    const cpu = r.cpu ? r.cpu.percent : 0;
+    const ram = r.ram ? r.ram.percent : 0;
+    const gpu = r.gpu ? r.gpu.gpu_util : 0;
+    const gpuMemPct = r.gpu && r.gpu.memory_total_mb > 0 ? Math.round(r.gpu.memory_used_mb / r.gpu.memory_total_mb * 100) : 0;
+    const grid = $('resourceGrid');
+    let healthOk = true;
+
+    let cpuBarClass = cpu > 80 ? 'red' : cpu > 50 ? 'yellow' : 'green';
+    let ramBarClass = ram > 80 ? 'red' : ram > 50 ? 'yellow' : 'blue';
+    let gpuBarClass = gpu > 80 ? 'red' : gpu > 50 ? 'yellow' : 'green';
+    let gpuMemBarClass = gpuMemPct > 80 ? 'red' : gpuMemPct > 50 ? 'yellow' : 'purple';
+
+    if (cpu > 80 || ram > 80 || gpu > 80) healthOk = false;
+
+    let gpuExtra = '<div class="rc-gpu-mem"><div class="rc-row"><span class="rc-label">VRAM</span><span>' + (r.gpu ? r.gpu.memory_used_mb : 0) + ' MB / ' + (r.gpu ? r.gpu.memory_total_mb : 0) + ' MB</span></div><div class="bar-bg"><div class="bar-fill ' + gpuMemBarClass + '" id="gpuMemBar" style="width:' + gpuMemPct + '%"></div></div></div>';
+
+    let cpuSub = (r.cpu ? r.cpu.cores_physical : '?') + ' cores';
+    let ramSub = (r.ram ? r.ram.used_gb.toFixed(1) : '?') + ' GB / ' + (r.ram ? r.ram.total_gb.toFixed(1) : '?') + ' GB total';
+    let gpuSub = (r.gpu && r.gpu.name ? r.gpu.name : 'GPU') + '  |  ' + (r.gpu && r.gpu.memory_used_mb ? (r.gpu.memory_used_mb / 1024).toFixed(1) : '?') + '/' + (r.gpu && r.gpu.memory_total_mb ? (r.gpu.memory_total_mb / 1024).toFixed(1) : '?') + ' GB';
+
+    if (grid) {
+      grid.innerHTML = makeResourceCard('cpu', 'CPU', cpu.toFixed(0) + '%', cpuSub, Math.min(cpu, 100), cpuBarClass) +
+        makeResourceCard('ram', 'RAM', ram.toFixed(0) + '%', ramSub, Math.min(ram, 100), ramBarClass) +
+        makeResourceCard('gpu', 'GPU', gpu.toFixed(0) + '%', gpuSub, Math.min(gpu, 100), gpuBarClass, gpuExtra);
+    }
+
+    const footer = $('resourceFooter');
+    if (footer) {
+      let html = '<div class="process-panel">';
+      if (r.processes && r.processes.length) {
+        html += '<div style="font-size:11px;color:#8b949e;margin-bottom:4px;display:flex;justify-content:space-between"><span>Top Processes (by memory)</span></div>';
+        r.processes.slice(0, 10).forEach(p => {
+          const mem = p.memory_mb || 0;
+          const cls = mem > 500 ? 'heavy' : mem > 200 ? 'moderate' : '';
+          html += '<div class="process-row ' + cls + '"><span class="p-name">' + (p.name || '?') + '</span><span class="p-mem">' + mem + ' MB</span></div>';
+        });
+      } else {
+        html += '<div style="color:#8b949e;font-size:12px">No process data</div>';
+      }
+      if (r.ollama && r.ollama.models && r.ollama.models.length) {
+        html += '<div style="margin-top:6px;padding-top:6px;border-top:1px solid #21262d;display:flex;gap:4px;flex-wrap:wrap">';
+        r.ollama.models.forEach(m => { html += '<span class="ollama-tag">' + (m.name || '?') + ': ' + (m.memory_mb || 0) + ' MB</span> ' });
+        html += '</div>';
+      }
+      footer.innerHTML = html + '</div>';
+    }
+
+    const summary = $('statusSummary');
+    if (summary) {
+      if (healthOk) {
+        summary.innerHTML = '<span class="status-badge ok">&#10003; All systems OK</span>';
+      } else {
+        let warnings = [];
+        if (cpu > 80) warnings.push('CPU ' + cpu.toFixed(0) + '%');
+        if (ram > 80) warnings.push('RAM ' + ram.toFixed(0) + '%');
+        if (gpu > 80) warnings.push('GPU ' + gpu.toFixed(0) + '%');
+        summary.innerHTML = '<span class="status-badge warn">&#9888; High usage: ' + warnings.join(', ') + '</span>';
+      }
+    }
+  } catch(e) {
+    _refreshFailCount++;
+    console.log('resource refresh failed:', e);
+    if (_refreshFailCount >= 3) {
+      updateLiveDot('error');
+      const summary = $('statusSummary');
+      if (summary) summary.innerHTML = '<span class="status-badge fail" style="cursor:pointer" onclick="retryConnection()">&#10007; Connection lost (' + _refreshFailCount + ' failures) — click to retry</span>';
+    } else {
+      updateLiveDot('stale');
+    }
+  }
+}
+
+async function runDoctor() {
+  await wrap(async () => {
+    clearInput(); showStatus('Running health check...');
+    const r = await api('/api/doctor');
+    if (!r || !r.checks) { showError('Invalid response'); return }
+    let html = '<div class="section-title">&#9881; Health Check Results</div>';
+    html += '<table><tr><th>Check</th><th>Status</th><th>Detail</th></tr>';
+    let allOk = true;
+    for (const [name, c] of Object.entries(r.checks)) {
+      const s = c.status || 'fail';
+      if (s !== 'pass') allOk = false;
+      let detail = '';
+      if (name === 'ollama' && s === 'pass') detail = c.models_available + ' models (' + (c.models || []).join(', ') + ')';
+      else if (name === 'gpu' && s === 'pass') detail = (c.gpus?.[0]?.name || 'N/A');
+      else if (s === 'fail') detail = c.error || c.note || '';
+      else if (s === 'warning') detail = c.alert || c.note || '';
+      html += '<tr><td style="text-transform:capitalize">' + name + '</td><td><span class="status-dot ' + s + '"></span>' + s.toUpperCase() + '</td><td>' + detail + '</td></tr>';
+    }
+    html += '</table>';
+    html += '<br><strong>' + (allOk ? '&#10003; All checks passed' : '&#9888; Some checks need attention') + '</strong>';
+    const res = $('result'); if (res) res.innerHTML = html;
+    toast(allOk ? 'All health checks passed' : 'Some checks need attention', allOk ? 'success' : 'warn');
+  });
+}
+
+async function runReport() {
+  await wrap(async () => {
+    clearInput(); showStatus('Generating report...');
+    const r = await api('/api/report');
+    if (!r) { showError('Invalid response'); return }
+    let html = '<div class="section-title">&#128202; Disk Report</div>';
+    html += '<table><tr><th>Drive</th><th>Total</th><th>Used</th><th>Free</th><th>Usage</th></tr>';
+    if (r.drives) r.drives.forEach(d => {
+      const up = d.used_percent || 0;
+      const barCls = up > 90 ? 'red' : up > 75 ? 'yellow' : 'green';
+      html += '<tr><td>' + d.path + '</td><td>' + (d.total_gb || 0) + ' GB</td><td>' + (d.used_gb || 0) + ' GB</td><td>' + (d.free_gb || 0) + ' GB</td><td><div class="bar-bg" style="height:8px;width:80px;display:inline-block;vertical-align:middle;margin-right:6px"><div class="bar-fill ' + barCls + '" style="width:' + Math.min(up, 100) + '%"></div></div>' + up.toFixed(0) + '%</td></tr>';
+    });
+    html += '</table>';
+    if (r.temp) html += '<br><div class="section-title">&#128451; Temp Files</div><span style="font-size:13px">' + r.temp.files + ' files, ' + (r.temp.size_bytes ? (r.temp.size_bytes / 1024 / 1024).toFixed(1) : '0') + ' MB</span>';
+    if (r.largest) for (const [folder, files] of Object.entries(r.largest)) {
+      html += '<br><div class="section-title">&#128194; Largest in ' + folder + '</div>';
+      if (files) files.forEach(f => { html += '<div class="source-item"><span class="source-score">' + (f.size_human || '?') + '</span>  ' + ((f.path || '').split('\\').pop() || '?') + '</div>' });
+    }
+    const res = $('result'); if (res) res.innerHTML = html;
+    toast('Report generated', 'success');
+  });
+}
+
+function showOrganize() {
+  const ia = $('inputArea');
+  if (!ia) return;
+  ia.style.display = 'block';
+  ia.innerHTML = '<div style="font-size:13px;margin-bottom:8px;color:#8b949e">Organize files in a folder by type</div><div class="scope-row"><input type="text" id="orgPath" value="~/Downloads" placeholder="Folder path" style="margin-bottom:0;flex:1"><button class="btn primary" onclick="runOrganize()" style="width:auto">Preview</button></div>';
+  const ra = $('resultArea');
+  if (ra) ra.style.display = 'none';
+}
+
+async function runOrganize() {
+  await wrap(async () => {
+    const op = $('orgPath');
+    const path = op ? op.value : '~/Downloads';
+    showStatus('Scanning and classifying...');
+    const r = await api('/api/organize', {path, auto: false});
+    if (!r || !r.moves || !r.moves.length) { showError('Nothing to organize in ' + path); return }
+    orgMoves = r.moves; preserveFolders = [];
+    let html = '<div class="section-title">&#128193; Organize Preview: ' + path + '</div>';
+    html += '<strong>' + (r.total_files || 0) + ' files found, ' + (r.total_moves || 0) + ' to organize</strong><br><br>';
+    html += '<table><tr><th>Category</th><th>Count</th><th>%</th></tr>';
+    if (r.categories) for (const [cat, cnt] of Object.entries(r.categories)) {
+      html += '<tr><td>' + cat + '</td><td>' + cnt + '</td><td>' + (r.total_files ? (cnt / r.total_files * 100).toFixed(0) : 0) + '%</td></tr>';
+    }
+    html += '</table><br>';
+    if (r.preserved_clusters && r.preserved_clusters.length) {
+      html += '<strong>Existing subfolders detected — keep files in place?</strong><br>';
+      r.preserved_clusters.forEach((c, i) => {
+        const fid = 'kp' + i;
+        const folderName = (c.folder || '').split('\\').pop() || c.folder;
+        html += '<div class="cluster-box"><label><input type="checkbox" id="' + fid + '" checked data-folder="' + (c.folder || '').replace(/"/g, '&quot;') + '">' + folderName + ' (' + (c.files || 0) + ' files)</label><div class="preserve-note">Keeps ' + (c.files || 0) + ' files in their current subfolder</div></div>';
+      });
+      html += '<br>';
+    }
+    html += '<div class="btn-row" style="margin-bottom:0"><button class="btn primary" onclick="applyOrganize()">Apply ' + (r.total_moves || 0) + ' moves</button>';
+    html += ' <button class="btn" onclick="clearInput();var ra=document.getElementById(\'resultArea\');if(ra)ra.style.display=\'none\'">Cancel</button></div>';
+    const res = $('result'); if (res) res.innerHTML = html;
+  });
+}
+
+async function applyOrganize() {
+  await wrap(async () => {
+    const checked = document.querySelectorAll('.cluster-box input[type=checkbox]:checked');
+    preserveFolders = Array.from(checked).map(cb => cb.dataset.folder).filter(Boolean);
+    showStatus('Applying moves' + (preserveFolders.length ? ' (' + preserveFolders.length + ' folders preserved)' : '') + '...');
+    const r = await api('/api/apply', {moves: orgMoves, preserve_folders: preserveFolders});
+    const res = $('result');
+    const msg = (r.success || 0) + ' moved, ' + (r.failed || 0) + ' failed, ' + (r.skipped || 0) + ' skipped' + (r.preserved ? ', ' + r.preserved + ' preserved' : '');
+    if (res) res.innerHTML = '<div class="section-title">&#10003; Organize Complete</div><span style="font-size:13px">' + msg + '</span>';
+    toast('Organize complete: ' + msg, r.failed > 0 ? 'warn' : 'success');
+    orgMoves = []; preserveFolders = [];
+  });
+}
+
+let _loadingSearch = false;
+async function showSearch() {
+  if (_loadingSearch) return;
+  _loadingSearch = true;
+  try {
+    clearInput();
+    let badgeHtml = '<div class="index-badge"><span class="spinner"></span> Loading index status...</div>';
+    const ia = $('inputArea');
+    if (!ia) { _loadingSearch = false; return }
+    ia.style.display = 'block';
+    ia.innerHTML = badgeHtml;
+    const ra = $('resultArea');
+    if (ra) ra.style.display = 'none';
+    const st = await api('/api/index-status');
+    let pills = '';
+    if (st.total_docs > 0) {
+      for (const [drive, count] of Object.entries(st.by_drive || {})) {
+        pills += '<span class="pill">' + drive + ': ' + count + ' docs</span> ';
+      }
+    } else {
+      pills = '<span class="pill empty">Nothing indexed yet</span>';
+    }
+    let opts = '<option value="">All Drives</option>';
+    for (const drive of Object.keys(st.by_drive || {})) {
+      opts += '<option value="' + drive + '">' + drive + '</option>';
+    }
+    opts += '<option value="__browse__">Browse...</option>';
+    let browseInput = '';
+    if (st.total_docs === 0) {
+      browseInput = '<div style="margin-top:8px;color:#8b949e;font-size:12px">Nothing indexed. Use the <strong>Index</strong> button first to index documents, then search them.</div>';
+    }
+    const iaEl = $('inputArea');
+    if (!iaEl) { _loadingSearch = false; return }
+    iaEl.innerHTML = '<div class="index-badge">' + pills + '</div><div class="scope-card"><div class="scope-row"><select id="searchScope">' + opts + '</select><input type="text" id="searchQ" placeholder="What are you looking for?" onkeydown="if(event.key===\'Enter\') runSearch()"><button class="btn primary" onclick="runSearch()">Search</button></div><div id="browsePath" style="display:none;margin-top:8px"><input type="text" id="searchPath" placeholder="Full path (e.g. C:\\Users\\...)"></div></div>' + browseInput;
+    const sel = $('searchScope');
+    if (sel) {
+      sel.addEventListener('change', function() {
+        const bp = $('browsePath');
+        if (bp) bp.style.display = this.value === '__browse__' ? 'block' : 'none';
+      });
+    }
+    _loadingSearch = false;
+  } catch(e) {
+    _loadingSearch = false;
+    const ia = $('inputArea');
+    if (ia) ia.innerHTML = '<div class="error">Failed to load index status: ' + e.message + '</div>';
+  }
+}
+
+async function runSearch() {
+  await wrap(async () => {
+    const qEl = $('searchQ');
+    if (!qEl) { showError('Search not ready'); return }
+    const q = qEl.value;
+    if (!q) { showError('Enter a question'); return }
+    const sel = $('searchScope');
+    let scope = sel ? sel.value : '';
+    if (scope === '__browse__') { const sp = $('searchPath'); scope = sp ? sp.value : '' }
+    showStatus('Searching' + (scope ? ' in ' + scope : '') + '...');
+    const r = await api('/api/query', {question: q, scope: scope || undefined});
+    if (!r) { showError('No response from server'); return }
+    if (r.error) { showError(r.error); return }
+    if (!r.sources || !r.sources.length) { showError('No results found for "' + q + '"'); return }
+    let html = '<div class="section-title">&#128269; Search Results</div>';
+    html += '<div class="result-card"><div class="rc-title">Answer</div>' + (r.answer || 'No answer') + '</div>';
+    html += '<div style="margin-top:8px"><strong>Sources (' + r.sources.length + '):</strong></div>';
+    (r.sources || []).forEach(s => {
+      html += '<div class="source-item"><span class="source-score">[' + (s.score || 0).toFixed(2) + ']</span> ' + (s.name || '?') + '</div>';
+    });
+    const res = $('result'); if (res) res.innerHTML = html;
+    toast('Found ' + r.sources.length + ' results for "' + q + '"', 'success');
+  });
+}
+
+function showIndex() {
+  const ia = $('inputArea');
+  if (!ia) return;
+  ia.style.display = 'block';
+  ia.innerHTML = '<div style="font-size:13px;margin-bottom:8px;color:#8b949e">Index a folder or file for searching</div><div class="scope-row"><input type="text" id="indexPath" placeholder="Folder or file path" style="margin-bottom:0;flex:1"><button class="btn primary" onclick="runIndex()" style="width:auto">Index</button></div>';
+  const ra = $('resultArea');
+  if (ra) ra.style.display = 'none';
+}
+
+async function runIndex() {
+  await wrap(async () => {
+    const ip = $('indexPath');
+    const path = ip ? ip.value : '';
+    if (!path) { showError('Enter a path'); return }
+    showStatus('Indexing ' + path + '...');
+    const r = await api('/api/index', {path});
+    if (!r) { showError('No response'); return }
+    if (r.error) { showError(r.error); return }
+    let parts = [];
+    if (r.indexed) parts.push(r.indexed + ' files (' + (r.total_chunks || 0) + ' chunks)');
+    if (r.skipped) parts.push(r.skipped + ' skipped');
+    if (r.failed) parts.push(r.failed + ' failed');
+    const msg = parts.length ? parts.join(', ') : 'No files indexed';
+    const res = $('result'); if (res) res.innerHTML = '<div class="section-title">&#10003; Index Complete</div><span style="font-size:13px">' + msg + '</span>';
+    toast('Indexing complete: ' + msg, r.failed > 0 ? 'warn' : 'success');
+  });
+}
+
+function retryConnection() {
+  _refreshFailCount = 0;
+  updateLiveDot('ok');
+  const summary = $('statusSummary');
+  if (summary) summary.innerHTML = '<span class="spinner"></span> Reconnecting...';
+  refreshResources();
+}
+
+refreshResources();
+resTimer = setInterval(refreshResources, 3000);
+setInterval(updateRefreshTime, 1000);
+</script>
+</body>
+</html>

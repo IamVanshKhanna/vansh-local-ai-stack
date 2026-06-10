@@ -56,6 +56,14 @@ def get_document(doc_id: int) -> Optional[dict]:
     return dict(row) if row else None
 
 
+def get_all_documents() -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, path, name, file_type, indexed_at, status, chunk_count FROM documents ORDER BY indexed_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def list_documents(status: Optional[str] = None) -> list[dict]:
     with get_connection() as conn:
         if status:
@@ -112,15 +120,20 @@ def get_chunks(document_id: int) -> list[dict]:
     return result
 
 
-def get_all_chunks() -> list[dict]:
+def get_all_chunks(path_prefix: str = "") -> list[dict]:
+    query = """
+        SELECT c.*, d.path as doc_path, d.name as doc_name
+        FROM chunks c
+        JOIN documents d ON c.document_id = d.id
+        WHERE c.embedding IS NOT NULL
+    """
+    params: list[str] = []
+    if path_prefix:
+        query += " AND d.path LIKE ?"
+        params.append(path_prefix.replace("\\", "\\\\").replace("%", "%%") + "%")
+    query += " ORDER BY d.path, c.chunk_index"
     with get_connection() as conn:
-        rows = conn.execute("""
-            SELECT c.*, d.path as doc_path, d.name as doc_name
-            FROM chunks c
-            JOIN documents d ON c.document_id = d.id
-            WHERE c.embedding IS NOT NULL
-            ORDER BY d.path, c.chunk_index
-        """).fetchall()
+        rows = conn.execute(query, params).fetchall()
     result = []
     for r in rows:
         d = dict(r)
@@ -147,9 +160,9 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
-def search_similar(query_embedding: list[float], top_k: int = 5
-                   ) -> list[dict]:
-    all_chunks = get_all_chunks()
+def search_similar(query_embedding: list[float], top_k: int = 5,
+                   path_prefix: str = "") -> list[dict]:
+    all_chunks = get_all_chunks(path_prefix=path_prefix)
     scored = []
     for chunk in all_chunks:
         emb = chunk.get("embedding")

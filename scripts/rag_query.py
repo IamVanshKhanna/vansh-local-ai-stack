@@ -57,7 +57,8 @@ Answer the question based only on the provided context. If the context does not 
 def query(query: str, top_k: int = 5,
           embed_model: str = "nomic-embed-text",
           llm_model: str = "llama3.2",
-          ollama_host: str = "http://localhost:11434") -> dict:
+          ollama_host: str = "http://localhost:11434",
+          scope: str = "") -> dict:
     _init_rag_db()
 
     chunk_count = get_chunk_count()
@@ -70,7 +71,7 @@ def query(query: str, top_k: int = 5,
         }
 
     query_embedding = embed_text(query, embed_model, ollama_host)
-    results = search_similar(query_embedding, top_k)
+    results = search_similar(query_embedding, top_k, path_prefix=scope)
 
     if not results:
         return {

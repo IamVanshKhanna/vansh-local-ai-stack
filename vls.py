@@ -264,6 +264,12 @@ def _health(args: argparse.Namespace) -> None:
         print(f"  {name}: {check['status']}")
 
 
+def _dashboard(args: argparse.Namespace) -> None:
+    from dashboard import run_dashboard
+    port = args.port
+    run_dashboard(port=port)
+
+
 def _doctor(args: argparse.Namespace) -> None:
     from health_check import check_ollama, check_gpu, check_ram, check_disk, check_scripts
     from examples.notify import notify, notify_email
@@ -507,6 +513,10 @@ def main() -> None:
 
     doc_p = sub.add_parser("doctor", help="Full system health check")
     doc_p.set_defaults(func=_doctor)
+
+    dash_p = sub.add_parser("dashboard", help="Open local web dashboard")
+    dash_p.add_argument("--port", type=int, default=8080, help="Port (default: 8080)")
+    dash_p.set_defaults(func=_dashboard)
 
     args = parser.parse_args()
 

@@ -100,6 +100,32 @@ def parse_target_map(target_map_str: str) -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
+# Cluster detection
+# ---------------------------------------------------------------------------
+
+def detect_existing_clusters(classified_files: list[dict],
+                             min_cluster: int = 2) -> list[dict]:
+    """Find subfolders containing *min_cluster* or more files.
+
+    Returns a list of ``{"folder": str, "files": int}`` dicts for each
+    immediate parent directory where file count meets the threshold.
+    """
+    from collections import Counter
+    parents: list[str] = []
+    for f in classified_files:
+        p = Path(f.get("path", ""))
+        parent = str(p.parent) if p.parent else ""
+        if parent:
+            parents.append(parent)
+    counts = Counter(parents)
+    clusters = []
+    for folder, cnt in counts.most_common():
+        if cnt >= min_cluster:
+            clusters.append({"folder": folder, "files": cnt})
+    return clusters
+
+
+# ---------------------------------------------------------------------------
 # Plan generation
 # ---------------------------------------------------------------------------
 
