@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import sys
 import webbrowser
 from pathlib import Path
@@ -19,6 +20,7 @@ import uvicorn
 app = FastAPI(title="Hermes Dashboard")
 
 TEMPLATES = Path(__file__).parent / "templates"
+_last_moves: list[dict] = []
 
 
 @app.get("/api/resources")
@@ -88,6 +90,21 @@ def api_index_status():
     return JSONResponse({"total_docs": total, "by_drive": by_drive})
 
 
+@app.post("/api/smart-targets")
+async def api_smart_targets(request: Request):
+    from scan_drives import scan_directory
+    from classify_files import classify_file, DEFAULT_RULES
+    from generate_plan import generate_moves, DEFAULT_TARGETS, detect_existing_clusters, suggest_targets_from_data
+
+    body = await request.json()
+    path = os.path.expanduser(body.get("path", "~/Downloads"))
+    files = list(scan_directory(Path(path)))
+    for f in files:
+        classify_file(f, DEFAULT_RULES)
+    suggestions = suggest_targets_from_data(files, DEFAULT_TARGETS)
+    return JSONResponse({"suggestions": suggestions})
+
+
 @app.post("/api/organize")
 async def api_organize(request: Request):
     from scan_drives import scan_directory
@@ -138,8 +155,11 @@ async def api_apply(request: Request):
             if not skip:
                 filtered.append(m)
         moves = filtered
+    global _last_moves
     results = apply_moves(moves, execute=True, dry_run=False, force=False)
     results["preserved"] = preserved
+    if results.get("success", 0) > 0:
+        _last_moves = moves
     return JSONResponse(results)
 
 
@@ -172,11 +192,64 @@ async def api_index(request: Request):
         return JSONResponse({"error": str(e)})
 
 
+@app.get("/api/drives")
+def api_drives():
+    import string
+    import ctypes
+    drives = []
+    bitmask = ctypes.windll.kernel32.GetLogicalDrives()
+    for letter in string.ascii_uppercase:
+        if bitmask & 1:
+            drives.append(f"{letter}:\\")
+        bitmask >>= 1
+    return JSONResponse({"drives": drives})
+
+
+@app.post("/api/browse")
+async def api_browse(request: Request):
+    body = await request.json()
+    path = body.get("path", "")
+    if not path or not Path(path).exists():
+        return JSONResponse({"error": f"Path not found: {path}"})
+    try:
+        items = []
+        p = Path(path)
+        for child in sorted(p.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
+            try:
+                items.append({
+                    "name": child.name,
+                    "is_dir": child.is_dir(),
+                    "size": child.stat().st_size if child.is_file() else 0,
+                })
+            except Exception:
+                pass
+        return JSONResponse({"path": path, "items": items})
+    except Exception as e:
+        return JSONResponse({"error": str(e)})
+
+
+@app.post("/api/undo-organize")
+async def api_undo_organize():
+    from apply_moves import reverse_moves
+    global _last_moves
+    if not _last_moves:
+        return JSONResponse({"error": "No moves to undo"})
+    try:
+        result = reverse_moves(_last_moves, execute=True)
+        if result.get("success", 0) > 0:
+            _last_moves = []
+        return JSONResponse(result)
+    except Exception as e:
+        return JSONResponse({"error": str(e)})
+
+
 @app.get("/", response_class=HTMLResponse)
 def index():
     html = TEMPLATES / "dashboard.html"
     if html.exists():
         content = html.read_text(encoding="utf-8")
+        hostname = socket.gethostname()
+        content = content.replace("{{HOSTNAME}}", hostname)
         return HTMLResponse(content, headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"})
     return HTMLResponse("<h1>Dashboard template not found</h1>", status_code=404)
 

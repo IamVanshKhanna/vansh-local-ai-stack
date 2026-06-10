@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Hermes Dashboard</title>
+<title>{{HOSTNAME}} Dashboard</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d1117;color:#c9d1d9;padding:20px}
@@ -26,8 +26,6 @@ h2{font-size:16px;font-weight:500;margin-bottom:8px;color:#8b949e}
 .resource-card .rc-sub{font-size:11px;color:#8b949e;margin-top:2px}
 .resource-card .rc-bar{margin:6px 0 2px}
 .rc-row{display:flex;justify-content:space-between;font-size:12px;color:#8b949e;margin:2px 0}
-.rc-gpu-mem{margin-top:8px;padding-top:8px;border-top:1px solid #21262d}
-.rc-gpu-mem .rc-label{font-size:10px}
 .header-bar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:16px}
 .header-left{display:flex;align-items:center;gap:12px}
 .header-right{display:flex;align-items:center;gap:16px;font-size:12px;color:#8b949e}
@@ -120,11 +118,20 @@ select{cursor:pointer;appearance:auto}
 
 <div class="header-bar">
   <div class="header-left">
-    <h1>Hermes Dashboard</h1>
+    <h1>{{HOSTNAME}} Dashboard</h1>
     <span class="live-dot" id="liveDot" title="Connected"></span>
   </div>
   <div class="header-right">
     <span id="statusSummary"><span class="status-badge ok">All systems OK</span></span>
+    <span id="uptime">-</span>
+    <span>|</span>
+    <select id="refreshRate" onchange="changeRefreshRate(this.value)" style="background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#c9d1d9;padding:2px 6px;font-size:11px;width:auto;cursor:pointer">
+      <option value="1000">1s</option>
+      <option value="3000" selected>3s</option>
+      <option value="5000">5s</option>
+      <option value="10000">10s</option>
+      <option value="0">Paused</option>
+    </select>
     <span id="refreshTime">-</span>
   </div>
 </div>
@@ -132,7 +139,6 @@ select{cursor:pointer;appearance:auto}
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
     <h2 style="margin:0">System Resources</h2>
-    <span style="font-size:11px;color:#8b949e">refreshes every 3s</span>
   </div>
   <div class="resource-grid" id="resourceGrid"></div>
   <div id="resourceFooter" style="margin-top:8px"></div>
@@ -214,12 +220,11 @@ async function wrap(fn) {
   }
 }
 
-function makeResourceCard(id, label, value, sub, barPct, barClass, extra) {
+function makeResourceCard(id, label, value, sub, barPct, barClass) {
   let html = '<div class="resource-card">';
   html += '<div class="rc-header"><span class="rc-label">' + label + '</span><span class="rc-value" id="' + id + 'Val">' + value + '</span></div>';
   html += '<div class="rc-bar"><div class="bar-bg"><div class="bar-fill ' + barClass + '" id="' + id + 'Bar" style="width:' + barPct + '%"></div></div></div>';
   html += '<div class="rc-sub" id="' + id + 'Sub">' + sub + '</div>';
-  if (extra) html += extra;
   return html + '</div>';
 }
 
@@ -249,28 +254,29 @@ async function refreshResources() {
     updateRefreshTime();
     const cpu = r.cpu ? r.cpu.percent : 0;
     const ram = r.ram ? r.ram.percent : 0;
-    const gpu = r.gpu ? r.gpu.gpu_util : 0;
+    const gpuUtil = r.gpu ? r.gpu.gpu_util : 0;
     const gpuMemPct = r.gpu && r.gpu.memory_total_mb > 0 ? Math.round(r.gpu.memory_used_mb / r.gpu.memory_total_mb * 100) : 0;
     const grid = $('resourceGrid');
     let healthOk = true;
 
     let cpuBarClass = cpu > 80 ? 'red' : cpu > 50 ? 'yellow' : 'green';
     let ramBarClass = ram > 80 ? 'red' : ram > 50 ? 'yellow' : 'blue';
-    let gpuBarClass = gpu > 80 ? 'red' : gpu > 50 ? 'yellow' : 'green';
-    let gpuMemBarClass = gpuMemPct > 80 ? 'red' : gpuMemPct > 50 ? 'yellow' : 'purple';
+    let gpuBarClass = gpuMemPct > 80 ? 'red' : gpuMemPct > 50 ? 'yellow' : 'purple';
 
-    if (cpu > 80 || ram > 80 || gpu > 80) healthOk = false;
+    if (cpu > 80 || ram > 80 || gpuMemPct > 80) healthOk = false;
 
-    let gpuExtra = '<div class="rc-gpu-mem"><div class="rc-row"><span class="rc-label">VRAM</span><span>' + (r.gpu ? r.gpu.memory_used_mb : 0) + ' MB / ' + (r.gpu ? r.gpu.memory_total_mb : 0) + ' MB</span></div><div class="bar-bg"><div class="bar-fill ' + gpuMemBarClass + '" id="gpuMemBar" style="width:' + gpuMemPct + '%"></div></div></div>';
-
-    let cpuSub = (r.cpu ? r.cpu.cores_physical : '?') + ' cores';
-    let ramSub = (r.ram ? r.ram.used_gb.toFixed(1) : '?') + ' GB / ' + (r.ram ? r.ram.total_gb.toFixed(1) : '?') + ' GB total';
-    let gpuSub = (r.gpu && r.gpu.name ? r.gpu.name : 'GPU') + '  |  ' + (r.gpu && r.gpu.memory_used_mb ? (r.gpu.memory_used_mb / 1024).toFixed(1) : '?') + '/' + (r.gpu && r.gpu.memory_total_mb ? (r.gpu.memory_total_mb / 1024).toFixed(1) : '?') + ' GB';
+    let cpuSub = (r.cpu ? r.cpu.cores_physical : '?') + ' cores  |  ' + cpu.toFixed(0) + '% util';
+    let ramSub = (r.ram ? r.ram.used_gb.toFixed(1) : '?') + ' GB / ' + (r.ram ? r.ram.total_gb.toFixed(1) : '?') + ' GB  |  ' + ram.toFixed(0) + '% used';
+    let gpuName = r.gpu && r.gpu.name ? r.gpu.name : 'GPU';
+    let gpuTemp = r.gpu && r.gpu.gpu_temp ? r.gpu.gpu_temp + '°C' : '?°C';
+    let gpuPower = r.gpu && r.gpu.power_watts ? r.gpu.power_watts.toFixed(1) + 'W' : '?W';
+    let gpuVram = (r.gpu && r.gpu.memory_used_mb ? (r.gpu.memory_used_mb / 1024).toFixed(1) : '?') + '/' + (r.gpu && r.gpu.memory_total_mb ? (r.gpu.memory_total_mb / 1024).toFixed(1) : '?') + ' GB VRAM';
+    let gpuSub = gpuName + '  |  ' + gpuUtil + '% util  |  ' + gpuTemp + '  |  ' + gpuPower + '  |  ' + gpuVram;
 
     if (grid) {
       grid.innerHTML = makeResourceCard('cpu', 'CPU', cpu.toFixed(0) + '%', cpuSub, Math.min(cpu, 100), cpuBarClass) +
         makeResourceCard('ram', 'RAM', ram.toFixed(0) + '%', ramSub, Math.min(ram, 100), ramBarClass) +
-        makeResourceCard('gpu', 'GPU', gpu.toFixed(0) + '%', gpuSub, Math.min(gpu, 100), gpuBarClass, gpuExtra);
+        makeResourceCard('gpu', 'GPU', gpuMemPct + '%', gpuSub, Math.min(gpuMemPct, 100), gpuBarClass);
     }
 
     const footer = $('resourceFooter');
@@ -302,9 +308,17 @@ async function refreshResources() {
         let warnings = [];
         if (cpu > 80) warnings.push('CPU ' + cpu.toFixed(0) + '%');
         if (ram > 80) warnings.push('RAM ' + ram.toFixed(0) + '%');
-        if (gpu > 80) warnings.push('GPU ' + gpu.toFixed(0) + '%');
+        if (gpuMemPct > 80) warnings.push('VRAM ' + gpuMemPct + '%');
         summary.innerHTML = '<span class="status-badge warn">&#9888; High usage: ' + warnings.join(', ') + '</span>';
       }
+    }
+
+    const uptimeEl = $('uptime');
+    if (uptimeEl && r.uptime) {
+      let u = '';
+      if (r.uptime.days > 0) u += r.uptime.days + 'd ';
+      u += r.uptime.hours + 'h ' + r.uptime.minutes + 'm';
+      uptimeEl.textContent = 'Uptime: ' + u;
     }
   } catch(e) {
     _refreshFailCount++;
@@ -371,7 +385,7 @@ function showOrganize() {
   const ia = $('inputArea');
   if (!ia) return;
   ia.style.display = 'block';
-  ia.innerHTML = '<div style="font-size:13px;margin-bottom:8px;color:#8b949e">Organize files in a folder by type</div><div class="scope-row"><input type="text" id="orgPath" value="~/Downloads" placeholder="Folder path" style="margin-bottom:0;flex:1"><button class="btn primary" onclick="runOrganize()" style="width:auto">Preview</button></div>';
+  ia.innerHTML = '<div class="scope-row"><input type="text" id="orgPath" value="~/Downloads" placeholder="Folder path" style="margin-bottom:0;flex:1"><button class="btn primary" onclick="runOrganize()" style="width:auto">Preview</button></div>';
   const ra = $('resultArea');
   if (ra) ra.style.display = 'none';
 }
@@ -414,7 +428,7 @@ async function applyOrganize() {
     const r = await api('/api/apply', {moves: orgMoves, preserve_folders: preserveFolders});
     const res = $('result');
     const msg = (r.success || 0) + ' moved, ' + (r.failed || 0) + ' failed, ' + (r.skipped || 0) + ' skipped' + (r.preserved ? ', ' + r.preserved + ' preserved' : '');
-    if (res) res.innerHTML = '<div class="section-title">&#10003; Organize Complete</div><span style="font-size:13px">' + msg + '</span>';
+    if (res) res.innerHTML = '<div class="section-title">&#10003; Organize Complete</div><span style="font-size:13px">' + msg + '</span><br><br><button class="btn danger small" onclick="undoOrganize()">&#8634; Undo</button>';
     toast('Organize complete: ' + msg, r.failed > 0 ? 'warn' : 'success');
     orgMoves = []; preserveFolders = [];
   });
@@ -447,18 +461,32 @@ async function showSearch() {
       opts += '<option value="' + drive + '">' + drive + '</option>';
     }
     opts += '<option value="__browse__">Browse...</option>';
-    let browseInput = '';
-    if (st.total_docs === 0) {
-      browseInput = '<div style="margin-top:8px;color:#8b949e;font-size:12px">Nothing indexed. Use the <strong>Index</strong> button first to index documents, then search them.</div>';
-    }
+    let browseInput = st.total_docs === 0 ? '<div style="margin-top:8px;color:#8b949e;font-size:12px">Nothing indexed yet</div>' : '';
     const iaEl = $('inputArea');
     if (!iaEl) { _loadingSearch = false; return }
-    iaEl.innerHTML = '<div class="index-badge">' + pills + '</div><div class="scope-card"><div class="scope-row"><select id="searchScope">' + opts + '</select><input type="text" id="searchQ" placeholder="What are you looking for?" onkeydown="if(event.key===\'Enter\') runSearch()"><button class="btn primary" onclick="runSearch()">Search</button></div><div id="browsePath" style="display:none;margin-top:8px"><input type="text" id="searchPath" placeholder="Full path (e.g. C:\\Users\\...)"></div></div>' + browseInput;
+    let browseUi = '';
+    if (st.total_docs > 0) {
+      browseUi = '<div id="browsePath" style="display:none;margin-top:8px">';
+      browseUi += '<div id="browseDrives" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px"></div><div style="display:flex;gap:6px"><input type="text" id="searchPath" placeholder="Full path (e.g. C:\\Users\\...)" style="margin-bottom:0;flex:1"><button class="btn small" onclick="browseDir()">Browse</button></div><div id="browseContents" style="margin-top:4px;font-size:12px;max-height:200px;overflow-y:auto"></div></div>';
+    }
+    iaEl.innerHTML = '<div class="index-badge">' + pills + '</div><div class="scope-card"><div class="scope-row"><select id="searchScope">' + opts + '</select><input type="text" id="searchQ" placeholder="What are you looking for?" onkeydown="if(event.key===\'Enter\') runSearch()"><button class="btn primary" onclick="runSearch()">Search</button></div>' + browseUi + '</div>' + browseInput;
     const sel = $('searchScope');
     if (sel) {
-      sel.addEventListener('change', function() {
+      sel.addEventListener('change', async function() {
         const bp = $('browsePath');
-        if (bp) bp.style.display = this.value === '__browse__' ? 'block' : 'none';
+        if (!bp) return;
+        if (this.value === '__browse__') {
+          bp.style.display = 'block';
+          try {
+            const dr = await api('/api/drives');
+            const bd = $('browseDrives');
+            if (bd) {
+              bd.innerHTML = (dr.drives || []).map(d => '<button class="btn small" onclick="document.getElementById(\'searchPath\').value=\'' + d + '\';browseDir()">' + d + '</button>').join('');
+            }
+          } catch(e) {}
+        } else {
+          bp.style.display = 'none';
+        }
       });
     }
     _loadingSearch = false;
@@ -466,6 +494,27 @@ async function showSearch() {
     _loadingSearch = false;
     const ia = $('inputArea');
     if (ia) ia.innerHTML = '<div class="error">Failed to load index status: ' + e.message + '</div>';
+  }
+}
+
+async function browseDir() {
+  const pathEl = $('searchPath');
+  const path = pathEl ? pathEl.value : '';
+  if (!path) { toast('Enter a path', 'warn'); return }
+  try {
+    const r = await api('/api/browse', {path});
+    if (r.error) { toast(r.error, 'error'); return }
+    const bc = $('browseContents');
+    if (!bc) return;
+    let html = '';
+    if (r.items) r.items.forEach(item => {
+      const icon = item.is_dir ? '&#128193;' : '&#128196;';
+      const click = item.is_dir ? 'style="cursor:pointer" onclick="document.getElementById(\'searchPath\').value=\'' + (path.replace(/\\/g, '\\\\') + '\\\\' + item.name).replace(/\\\\/g, '\\\\') + '\';browseDir()"' : '';
+      html += '<div ' + click + '>' + icon + ' ' + item.name + '</div>';
+    });
+    bc.innerHTML = html;
+  } catch(e) {
+    toast('Browse failed: ' + e.message, 'error');
   }
 }
 
@@ -487,7 +536,8 @@ async function runSearch() {
     html += '<div class="result-card"><div class="rc-title">Answer</div>' + (r.answer || 'No answer') + '</div>';
     html += '<div style="margin-top:8px"><strong>Sources (' + r.sources.length + '):</strong></div>';
     (r.sources || []).forEach(s => {
-      html += '<div class="source-item"><span class="source-score">[' + (s.score || 0).toFixed(2) + ']</span> ' + (s.name || '?') + '</div>';
+      const sp = s.path || s.name || '?';
+      html += '<div class="source-item"><span class="source-score">[' + (s.score || 0).toFixed(2) + ']</span> ' + sp + '</div>';
     });
     const res = $('result'); if (res) res.innerHTML = html;
     toast('Found ' + r.sources.length + ' results for "' + q + '"', 'success');
@@ -498,7 +548,7 @@ function showIndex() {
   const ia = $('inputArea');
   if (!ia) return;
   ia.style.display = 'block';
-  ia.innerHTML = '<div style="font-size:13px;margin-bottom:8px;color:#8b949e">Index a folder or file for searching</div><div class="scope-row"><input type="text" id="indexPath" placeholder="Folder or file path" style="margin-bottom:0;flex:1"><button class="btn primary" onclick="runIndex()" style="width:auto">Index</button></div>';
+  ia.innerHTML = '<div class="scope-row"><input type="text" id="indexPath" placeholder="Folder or file path" style="margin-bottom:0;flex:1"><button class="btn primary" onclick="runIndex()" style="width:auto">Index</button></div>';
   const ra = $('resultArea');
   if (ra) ra.style.display = 'none';
 }
@@ -522,6 +572,18 @@ async function runIndex() {
   });
 }
 
+async function undoOrganize() {
+  await wrap(async () => {
+    showStatus('Undoing last organize...');
+    const r = await api('/api/undo-organize', {});
+    if (r.error) { showError(r.error); return }
+    const msg = (r.success || 0) + ' restored, ' + (r.failed || 0) + ' failed';
+    const res = $('result');
+    if (res) res.innerHTML = '<div class="section-title">&#8634; Undo Complete</div><span style="font-size:13px">' + msg + '</span>';
+    toast('Undo complete: ' + msg, r.failed > 0 ? 'warn' : 'success');
+  });
+}
+
 function retryConnection() {
   _refreshFailCount = 0;
   updateLiveDot('ok');
@@ -529,6 +591,37 @@ function retryConnection() {
   if (summary) summary.innerHTML = '<span class="spinner"></span> Reconnecting...';
   refreshResources();
 }
+
+function changeRefreshRate(ms) {
+  if (resTimer) { clearInterval(resTimer); resTimer = null }
+  if (parseInt(ms) > 0) {
+    resTimer = setInterval(refreshResources, parseInt(ms));
+  }
+  toast('Refresh set to ' + (ms === '0' ? 'paused' : ms + 'ms'), 'info');
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  const key = e.key.toLowerCase();
+  if (key === 'd') { if ($('btnDoctor')) $('btnDoctor').click() }
+  else if (key === 'r') { if ($('btnReport')) $('btnReport').click() }
+  else if (key === 'o') { if ($('btnOrganize')) $('btnOrganize').click() }
+  else if (key === 's') { if ($('btnSearch')) $('btnSearch').click() }
+  else if (key === 'i') { if ($('btnIndex')) $('btnIndex').click() }
+  else if (key === '?') { toast('Shortcuts: D=Doctor R=Report O=Organize S=Search I=Index', 'info') }
+});
+
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) {
+    if (resTimer) { clearInterval(resTimer); resTimer = null }
+    resTimer = setInterval(refreshResources, 10000);
+  } else {
+    if (resTimer) { clearInterval(resTimer); resTimer = null }
+    const sel = $('refreshRate');
+    const rate = sel ? parseInt(sel.value) : 3000;
+    resTimer = setInterval(refreshResources, rate > 0 ? rate : 3000);
+  }
+});
 
 refreshResources();
 resTimer = setInterval(refreshResources, 3000);

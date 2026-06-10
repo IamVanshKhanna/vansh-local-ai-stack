@@ -13,6 +13,7 @@ import psutil
 _gpu_cache: dict = {}
 _gpu_cache_time: float = 0
 _GPU_CACHE_TTL: float = 10.0  # refresh GPU info every 10 seconds
+_cpu_history: list[float] = []
 
 
 def _parse_ollama_ps() -> list[dict]:
@@ -70,23 +71,25 @@ def get_gpu_info() -> dict:
         return _gpu_cache
 
     default = {"name": "N/A", "memory_total_mb": 0, "memory_used_mb": 0,
-               "memory_free_mb": 0, "gpu_util": 0}
+               "memory_free_mb": 0, "gpu_util": 0, "gpu_temp": 0, "power_watts": 0}
     try:
         result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu",
+            ["nvidia-smi", "--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu,power.draw",
              "--format=csv,noheader,nounits"],
             capture_output=True, text=True, timeout=5,
             encoding="utf-8", errors="replace",
         )
         if result.returncode == 0 and result.stdout.strip():
             parts = [p.strip() for p in result.stdout.split(",")]
-            if len(parts) >= 5:
+            if len(parts) >= 7:
                 _gpu_cache = {
                     "name": parts[0],
                     "memory_total_mb": int(float(parts[1])),
                     "memory_used_mb": int(float(parts[2])),
                     "memory_free_mb": int(float(parts[3])),
                     "gpu_util": int(float(parts[4])),
+                    "gpu_temp": int(float(parts[5])),
+                    "power_watts": float(parts[6]) if parts[6].replace(".", "").replace("-", "").isdigit() else 0,
                 }
                 _gpu_cache_time = now
                 return _gpu_cache
@@ -96,9 +99,12 @@ def get_gpu_info() -> dict:
 
 
 def get_resources() -> dict:
-    cpu_percent = psutil.cpu_percent(interval=0.0)
-    if cpu_percent == 0.0:
-        cpu_percent = psutil.cpu_percent(interval=0.3)
+    global _cpu_history
+    cpu_percent = psutil.cpu_percent(interval=0.3)
+    _cpu_history.append(cpu_percent)
+    if len(_cpu_history) > 3:
+        _cpu_history.pop(0)
+    cpu_percent = sum(_cpu_history) / len(_cpu_history)
     cpu_count = psutil.cpu_count()
     cpu_count_logic = psutil.cpu_count(logical=True)
     mem = psutil.virtual_memory()
@@ -115,6 +121,11 @@ def get_resources() -> dict:
     for p in processes:
         if "ollama" in p["name"].lower():
             ollama_total = max(ollama_total, p["memory_mb"])
+
+    uptime_seconds = int(time.time() - psutil.boot_time())
+    days, remainder = divmod(uptime_seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, _ = divmod(remainder, 60)
 
     return {
         "cpu": {
@@ -135,4 +146,5 @@ def get_resources() -> dict:
         },
         "processes": processes,
         "vls_memory_mb": round(vls_mem, 1),
+        "uptime": {"days": days, "hours": hours, "minutes": minutes},
     }

@@ -129,4 +129,62 @@
 - Placeholder npm files removed
 - `.bolt/` config removed
 
+## [2.2.0] — Dashboard UX Overhaul + Resource Monitor Fix (2026-06-11)
+
+**Added:**
+- Web dashboard (`vls dashboard --port 8080`): dark-theme single-page UI with live system monitoring
+- Resource monitor (`/api/resources`): CPU/RAM/GPU bars with color thresholds, top 10 processes, Ollama model memory
+- Health check (`/api/doctor`): Ollama, GPU, RAM, Disk, Scripts — all pass/fail at a glance
+- Disk report (`/api/report`): drive usage bars, temp file analysis, largest files
+- Scope-aware search: dropdown for All/C:/D:/Browse, index status badges per drive
+- Folder-aware organize: `detect_existing_clusters()` — preserves subfolder structure, checkbox UI
+- Button debounce + spinners: `wrap()` async guard disables all buttons during actions, shows spinner
+- Toast notifications, live connection indicator (pulsing dot), "last refreshed" timestamp
+- GPU VRAM bar (separate from util bar), zebra-striped process list, card hover effects
+- Connection retry — click status badge when connection lost
+- `vls.py`: dashboard subcommand with `--port` flag
+
+**Changed:**
+- `resource_monitor.py`: 10s GPU cache prevents nvidia-smi from blocking `/api/resources`; CPU interval fallback for accurate measurement
+- `dashboard.py`: 12 API routes, cache-busting headers, mobile responsive (768px breakpoint)
+- `rag_dal.py`: added `get_all_documents()`, `path_prefix` filter in `get_all_chunks()`/`search_similar()`
+- `rag_query.py`: `scope` param for path-prefix filtering
+- `generate_plan.py`: new `detect_existing_clusters()` function
+- `pyproject.toml`: version bumped to 2.2.0
+
+**Added (tests):**
+- `tests/test_organize_preserve.py`: 6 new tests for `detect_existing_clusters` — 144 total
+
+**Model Council rating:** 9.1/10 — Approved.
+
+## [2.3.0] — Hostname Dashboard + GPU VRAM Fix + CPU Smoothing (2026-06-11)
+
+**Added:**
+- Dynamic dashboard title: shows device hostname (e.g. "MR_STRANGER Dashboard") instead of "Hermes Dashboard"
+- GPU temperature (`temperature.gpu`) and power draw (`power.draw`) in nvidia-smi query — displayed in GPU card sub-text
+- System uptime in header-right (e.g. "Uptime: 2h 15m") with days/hours/minutes breakdown
+- Refresh rate selector: dropdown in header (1s / 3s / 5s / 10s / Paused)
+- Keyboard shortcuts: `D`=Doctor `R`=Report `O`=Organize `S`=Search `I`=Index `?`=help overlay
+- Tab visibility pause: switches to 10s when tab hidden, resumes user rate when visible
+- Undo organize button + `/api/undo-organize` endpoint with `reverse_moves()` safety net
+- `/api/smart-targets` endpoint: suggests organize targets from existing file locations
+- `/api/drives` + `/api/browse` endpoints: drive listing and directory browsing for search scope
+- Browse UI in search scope: shows drive buttons, clickable directories, path input
+- `suggest_targets_from_data()` in `generate_plan.py` — smart cross-drive target suggestions
+
+**Changed:**
+- GPU card: VRAM % is now the primary bar metric (was GPU util which stays at 0% idle); util + temp + power + VRAM shown in sub-text line
+- All resource cards now have **uniform height** — removed `extra` param and `rc-gpu-mem` div; VRAM info moved into `rc-sub` line
+- CPU smoothing: 3-point rolling average (`_cpu_history`) replaces interval-0.0 fallback — no more 19-point jumps between 3s polls
+- Search results: now show full file path (`s.path`) instead of just file name
+- Clean UI: stripped all instructional text from organize/index/search panels (just controls, no guidance)
+- `dashboard.py`: imports `socket` for dynamic hostname, stores `_last_moves` for undo safety
+- `apply_moves.py`: new `reverse_moves()` function swaps source/destination
+- `resource_monitor.py`: nvidia-smi queries `temperature.gpu` and `power.draw`; `_cpu_history` module-level list for smoothing; `uptime` in return dict
+
+**Added (tests):**
+- (all 144 existing tests pass unchanged; no regressions)
+
+**Model Council rating:** pending — target 9.85/10
+
 ## Planned

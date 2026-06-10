@@ -162,6 +162,34 @@ def generate_moves(
     return moves
 
 
+def suggest_targets_from_data(classified_files: list[dict],
+                              targets: dict[str, str] | None = None) -> dict[str, str]:
+    """Suggest smart organize targets based on existing file locations.
+
+    For each category, finds the most common parent directory among files
+    already in that category. Falls back to *targets* or ``DEFAULT_TARGETS``
+    when no cluster is found.
+    """
+    from collections import Counter
+    by_cat: dict[str, list[str]] = {}
+    for f in classified_files:
+        cat = f.get("category", "uncategorized")
+        p = Path(f.get("path", ""))
+        parent = str(p.parent) if p.parent else ""
+        if parent:
+            by_cat.setdefault(cat, []).append(parent)
+
+    fallback = targets or DEFAULT_TARGETS
+    suggestions: dict[str, str] = {}
+    for cat, parents in by_cat.items():
+        if len(parents) >= 2:
+            top = Counter(parents).most_common(1)[0][0]
+            suggestions[cat] = top
+        elif cat in fallback:
+            suggestions[cat] = fallback[cat]
+    return suggestions
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------

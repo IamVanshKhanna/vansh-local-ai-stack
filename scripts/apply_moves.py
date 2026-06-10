@@ -346,5 +346,18 @@ def main() -> None:
         print(f"  Use --execute to apply changes.")
 
 
+def reverse_moves(moves: list[dict], execute: bool = False) -> dict:
+    """Reverse a set of moves by swapping source/destination."""
+    reversed_moves = []
+    for m in moves:
+        reversed_moves.append({
+            "source": m.get("destination", ""),
+            "destination": m.get("source", ""),
+            "size": m.get("size", 0),
+            "category": m.get("category", "uncategorized"),
+        })
+    return apply_moves(reversed_moves, execute=execute, dry_run=False, force=True)
+
+
 if __name__ == "__main__":
     main()
