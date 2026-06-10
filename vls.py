@@ -123,7 +123,7 @@ def _report(args: argparse.Namespace) -> None:
 
     report = generate_report(args.paths)
     for d in report["drives"]:
-        print(f"{d['path']}: {format_size(d['free'] * 1024 ** 3)} free / {format_size(d['total'] * 1024 ** 3)} total")
+        print(f"{d['path']}: {d['free_gb']} GB free / {d['total_gb']} GB total")
     if report["alerts"]:
         print("Alerts:", report["alerts"])
 

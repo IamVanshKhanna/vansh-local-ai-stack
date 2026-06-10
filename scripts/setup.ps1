@@ -200,9 +200,15 @@ if ($ScheduleTasks) {
             foreach ($taskFile in $taskFiles) {
                 $taskName = "vansh-local-ai-stack\$($taskFile.BaseName)"
                 try {
+                    # Resolve env vars in XML (e.g. %USERDOMAIN%\%USERNAME%)
+                    $xmlContent = Get-Content -LiteralPath $taskFile.FullName -Raw
+                    $xmlContent = [System.Environment]::ExpandEnvironmentVariables($xmlContent)
+                    $tempXml = [System.IO.Path]::GetTempFileName() + ".xml"
+                    Set-Content -LiteralPath $tempXml -Value $xmlContent -Encoding UTF8
                     # Unregister if exists (ignore error if not)
                     schtasks /delete /tn $taskName /f 2>&1 | Out-Null
-                    schtasks /create /xml "$($taskFile.FullName)" /tn $taskName /f 2>&1 | Out-Null
+                    schtasks /create /xml $tempXml /tn $taskName /f 2>&1 | Out-Null
+                    Remove-Item -LiteralPath $tempXml -Force -ErrorAction SilentlyContinue
                     if ($LASTEXITCODE -eq 0) {
                         Write-OK "Registered task: $taskName"
                     } else {
