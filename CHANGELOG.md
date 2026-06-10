@@ -17,6 +17,16 @@
 - `vls doctor` now sends Windows toast on warnings/fails
 - `vls doctor` optionally sends email (if SMTP configured in `.env`)
 
+## [1.2.0] — Task Scheduler Automation
+
+**Added:**
+- `config/tasks/daily-health-check.xml` — runs `vls doctor` daily at 8am
+- `config/tasks/weekly-disk-report.xml` — runs `vls report` Sundays at 9am
+- `config/tasks/monthly-catalog-backup.xml` — backups catalog.db on 1st of month at 10am
+- `setup.ps1 -ScheduleTasks`: admin check, auto-registers all 3 tasks via schtasks
+- All task XMLs use `%USERPROFILE%` for portable paths (no hardcoded user)
+- Tasks run on battery or AC, start if missed, 30-min timeout
+
 ## [1.0.0] — Scenario B Baseline
 
 **Breaking changes from 0.1.0:**

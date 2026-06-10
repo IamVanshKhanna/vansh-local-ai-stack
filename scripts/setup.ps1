@@ -186,16 +186,28 @@ if ($ScheduleTasks) {
     Write-Step "Scheduled tasks"
 
     $tasksDir = "$ProjectRoot\config\tasks"
-    $vlsPath = "$venvPath\Scripts\vls.exe"
+
+    # Check admin — schtasks /create often needs it
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if (-not $isAdmin) {
+        Write-Warn "Task registration may require Administrator privileges"
+        Write-Host "  Re-run: Start-Process powershell -Verb RunAs -Args '-File ""$PSCommandPath"" -ScheduleTasks'"
+    }
 
     if (Test-Path $tasksDir) {
         $taskFiles = Get-ChildItem "$tasksDir\*.xml" -ErrorAction SilentlyContinue
         if ($taskFiles) {
             foreach ($taskFile in $taskFiles) {
-                $taskName = $taskFile.BaseName
+                $taskName = "vansh-local-ai-stack\$($taskFile.BaseName)"
                 try {
-                    schtasks /create /xml "$($taskFile.FullName)" /tn "vansh-local-ai-stack\$taskName" /f 2>&1 | Out-Null
-                    Write-OK "Registered task: $taskName"
+                    # Unregister if exists (ignore error if not)
+                    schtasks /delete /tn $taskName /f 2>&1 | Out-Null
+                    schtasks /create /xml "$($taskFile.FullName)" /tn $taskName /f 2>&1 | Out-Null
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-OK "Registered task: $taskName"
+                    } else {
+                        Write-Warn "Could not register task $taskName (try as Admin)"
+                    }
                 } catch {
                     Write-Warn "Could not register task $taskName (run as Admin?)"
                 }
