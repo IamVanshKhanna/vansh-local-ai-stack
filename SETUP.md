@@ -1,9 +1,11 @@
 # Setup Guide
 
+> **New here?** Start with [GETTING_STARTED.md](GETTING_STARTED.md) for a non-technical walkthrough.
+
 ## Prerequisites
 
-- Windows 11
-- Python 3.10+
+- Windows 10 or 11
+- Python 3.10+ ([python.org](https://python.org))
 - NVIDIA GPU with latest drivers (optional — falls back to CPU)
 
 ## One-Command Setup
@@ -72,3 +74,14 @@ Health check daily, disk report weekly, catalog backup monthly:
 ```powershell
 .\setup.ps1  # re-run with admin privileges
 ```
+
+## Troubleshooting
+
+| Problem | Cause | Fix |
+|---|---|---|
+| `vls` not found after setup | New PATH not loaded | Close and reopen PowerShell |
+| Ollama not running | Service not started | Start "Ollama" from Start Menu |
+| Setup hangs on model pull | Large download (~11 GB) | Wait — check task manager for network activity |
+| GPU not detected | Unsupported GPU | Falls back to CPU automatically (slower but works) |
+| `pip install` fails | Python version mismatch | Use Python 3.10–3.12 (3.14 may have issues) |
+| Permission denied on Task Scheduler | Need admin rights | Re-run PowerShell as Administrator |
