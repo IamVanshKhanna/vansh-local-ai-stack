@@ -139,6 +139,7 @@ def _health(args: argparse.Namespace) -> None:
 def _doctor(args: argparse.Namespace) -> None:
     """Run all health checks and print a clear summary."""
     from health_check import check_ollama, check_gpu, check_ram, check_disk, check_scripts
+    from examples.notify import notify, notify_email
     from dotenv import load_dotenv
     import os
 
@@ -153,6 +154,7 @@ def _doctor(args: argparse.Namespace) -> None:
     }
 
     all_ok = True
+    alerts = []
     for name, result in checks.items():
         status = result.get("status", "fail")
         symbol = {"pass": "PASS", "warning": "WARN", "fail": "FAIL"}.get(status, "???")
@@ -169,11 +171,20 @@ def _doctor(args: argparse.Namespace) -> None:
         elif status == "fail":
             all_ok = False
             detail = f" - {result.get('error', result.get('note', 'unknown error'))}"
+            alerts.append(f"{name}: {result.get('error', result.get('note', 'failed'))}")
         elif status == "warning":
             all_ok = False
-            detail = f" - {result.get('error', result.get('alert', result.get('note', 'warning')))})"
+            detail = f" - {result.get('error', result.get('alert', result.get('note', 'warning')))}"
+            alerts.append(f"{name}: {result.get('alert', result.get('note', 'warning'))}")
 
         print(f"  [{symbol}] {name}{detail}")
+
+    if not all_ok:
+        msg = "; ".join(alerts)
+        notify("vls doctor - issues found", msg)
+        smtp_server = os.getenv("EMAIL_SMTP_SERVER")
+        if smtp_server:
+            notify_email("vls doctor alert", msg)
 
     print("")
     if all_ok:

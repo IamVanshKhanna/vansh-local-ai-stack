@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.0] — setup.ps1 + Notifications
+
+**Added:**
+- `scripts/setup.ps1` — idempotent one-command setup:
+  - Checks prerequisites (Python, winget, NVIDIA GPU)
+  - Installs Ollama via winget if missing
+  - Pulls 3 models (llama3.2, deepseek-coder-v2:lite, nomic-embed-text)
+  - Creates Python venv at `~/.local-ai-stack/venv`
+  - Installs deps via `pip install -e .`
+  - Copies `.env.example` → `.env` if not exists
+  - Creates data directories (logs, reports, catalogs, backups)
+  - Sets `OLLAMA_KEEP_ALIVE=0` (zero-idle)
+  - Optional `-ScheduleTasks` flag for Windows Task Scheduler
+  - Runs `vls doctor` to verify
+- `vls doctor` now sends Windows toast on warnings/fails
+- `vls doctor` optionally sends email (if SMTP configured in `.env`)
+
 ## [1.0.0] — Scenario B Baseline
 
 **Breaking changes from 0.1.0:**
