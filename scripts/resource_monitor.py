@@ -71,17 +71,17 @@ def get_gpu_info() -> dict:
         return _gpu_cache
 
     default = {"name": "N/A", "memory_total_mb": 0, "memory_used_mb": 0,
-               "memory_free_mb": 0, "gpu_util": 0, "gpu_temp": 0, "power_watts": 0}
+               "memory_free_mb": 0, "gpu_util": 0, "gpu_temp": 0, "power_watts": 0, "fan_speed": 0}
     try:
         result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu,power.draw",
+            ["nvidia-smi", "--query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu,power.draw,fan.speed",
              "--format=csv,noheader,nounits"],
             capture_output=True, text=True, timeout=5,
             encoding="utf-8", errors="replace",
         )
         if result.returncode == 0 and result.stdout.strip():
             parts = [p.strip() for p in result.stdout.split(",")]
-            if len(parts) >= 7:
+            if len(parts) >= 8:
                 _gpu_cache = {
                     "name": parts[0],
                     "memory_total_mb": int(float(parts[1])),
@@ -90,12 +90,96 @@ def get_gpu_info() -> dict:
                     "gpu_util": int(float(parts[4])),
                     "gpu_temp": int(float(parts[5])),
                     "power_watts": float(parts[6]) if parts[6].replace(".", "").replace("-", "").isdigit() else 0,
+                    "fan_speed": int(float(parts[7])) if parts[7].isdigit() else 0,
                 }
                 _gpu_cache_time = now
                 return _gpu_cache
     except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
         pass
     return default
+
+
+def _get_cpu_temp() -> int | None:
+    """Get CPU package temperature via WMI thermal zones."""
+    try:
+        result = subprocess.run(
+            ["wmic", "/namespace:\\\\root\\wmi", "PATH", "MSAcpi_ThermalZoneTemperature", "get", "CurrentTemperature,InstanceName"],
+            capture_output=True, text=True, timeout=5,
+            encoding="utf-8", errors="replace",
+        )
+        for line in result.stdout.strip().splitlines():
+            line = line.strip()
+            if not line or line.startswith("CurrentTemperature"):
+                continue
+            parts = line.split()
+            if parts and parts[0].isdigit():
+                temp_tenths_k = int(parts[0])
+                if temp_tenths_k > 0:
+                    return round((temp_tenths_k - 2732) / 10, 1)
+    except Exception:
+        pass
+    return None
+
+
+def _get_cpu_fan_speed() -> int | None:
+    """Get CPU fan speed in RPM via WMI."""
+    try:
+        result = subprocess.run(
+            ["wmic", "path", "Win32_Fan", "get", "DesiredSpeed"],
+            capture_output=True, text=True, timeout=5,
+            encoding="utf-8", errors="replace",
+        )
+        for line in result.stdout.strip().splitlines():
+            line = line.strip()
+            if line.isdigit():
+                return int(line)
+    except Exception:
+        pass
+    return None
+
+
+def _get_disk_temps() -> list[dict]:
+    """Get disk temperatures via PowerShell (requires admin)."""
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-PhysicalDisk | Get-StorageReliabilityCounter | Select-Object DeviceId, Temperature, @{N='Model';E={(Get-PhysicalDisk $_).FriendlyName}} | ConvertTo-Json"],
+            capture_output=True, text=True, timeout=5,
+            encoding="utf-8", errors="replace",
+        )
+        import json as _json
+        data = _json.loads(result.stdout)
+        if isinstance(data, dict):
+            data = [data]
+        return [{"device_id": d.get("DeviceId", 0), "temp_c": d.get("Temperature"), "model": d.get("Model", "")}
+                for d in data if d.get("Temperature") is not None]
+    except Exception:
+        pass
+    return []
+
+
+_net_io_cache: dict = {}
+_net_io_cache_time: float = 0
+
+
+def _get_network_io() -> dict:
+    """Get network I/O speeds (bytes/sec since last call)."""
+    global _net_io_cache, _net_io_cache_time
+    now = time.time()
+    counters = psutil.net_io_counters(pernic=False)
+    total_sent = counters.bytes_sent
+    total_recv = counters.bytes_recv
+
+    result = {"bytes_sent_per_sec": 0, "bytes_recv_per_sec": 0}
+    if _net_io_cache and (now - _net_io_cache_time) < 10:
+        elapsed = now - _net_io_cache_time
+        if elapsed > 0:
+            result["bytes_sent_per_sec"] = int((total_sent - _net_io_cache["bytes_sent"]) / elapsed)
+            result["bytes_recv_per_sec"] = int((total_recv - _net_io_cache["bytes_recv"]) / elapsed)
+
+    _net_io_cache = {"bytes_sent": total_sent, "bytes_recv": total_recv}
+    _net_io_cache_time = now
+    return result
 
 
 def _estimate_cpu_tdp() -> int:
@@ -139,6 +223,7 @@ def get_resources() -> dict:
     cpu_count_logic = psutil.cpu_count(logical=True)
     mem = psutil.virtual_memory()
     gpu = get_gpu_info()
+    cpu_temp = _get_cpu_temp()
     ollama_models = _parse_ollama_ps()
     processes = _top_processes(10)
     vls_mem = 0
@@ -165,12 +250,19 @@ def get_resources() -> dict:
     motherboard_watts = 25
     total_power_watts = round(cpu_power_watts + gpu_power_watts + ram_power_watts + motherboard_watts, 1)
 
+    sensors = {
+        "cpu_fan_rpm": _get_cpu_fan_speed(),
+        "disk_temps": _get_disk_temps(),
+        "network": _get_network_io(),
+    }
+
     return {
         "cpu": {
             "percent": round(cpu_percent, 1),
             "cores_physical": cpu_count,
             "cores_logical": cpu_count_logic,
             "power_watts": cpu_power_watts,
+            "temp_c": cpu_temp,
         },
         "ram": {
             "total_gb": round(mem.total / (1024**3), 1),
@@ -187,6 +279,7 @@ def get_resources() -> dict:
             "motherboard_watts": motherboard_watts,
             "total_watts": total_power_watts,
         },
+        "sensors": sensors,
         "ollama": {
             "models": ollama_models,
             "total_memory_mb": ollama_total,

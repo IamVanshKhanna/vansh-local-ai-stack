@@ -265,13 +265,16 @@ async function refreshResources() {
 
     if (cpu > 80 || ram > 80 || gpuMemPct > 80) healthOk = false;
 
-    let cpuSub = (r.cpu ? r.cpu.cores_physical : '?') + ' cores  |  ' + cpu.toFixed(0) + '% util';
+    let cpuTemp = r.cpu && r.cpu.temp_c ? r.cpu.temp_c + '°C' : '';
+    let gpuFan = r.gpu && r.gpu.fan_speed ? r.gpu.fan_speed + '%' : '';
+    let cpuSub = (r.cpu ? r.cpu.cores_physical : '?') + ' cores  |  ' + cpu.toFixed(0) + '% util' + (cpuTemp ? '  |  ' + cpuTemp : '');
     let ramSub = (r.ram ? r.ram.used_gb.toFixed(1) : '?') + ' GB / ' + (r.ram ? r.ram.total_gb.toFixed(1) : '?') + ' GB  |  ' + ram.toFixed(0) + '% used';
     let gpuName = r.gpu && r.gpu.name ? r.gpu.name : 'GPU';
     let gpuTemp = r.gpu && r.gpu.gpu_temp ? r.gpu.gpu_temp + '°C' : '?°C';
     let gpuPower = r.gpu && r.gpu.power_watts ? 'GPU: ' + r.gpu.power_watts.toFixed(1) + 'W' : 'GPU: ?W';
+    let gpuFanStr = gpuFan ? '  |  Fan: ' + gpuFan : '';
     let gpuVram = (r.gpu && r.gpu.memory_used_mb ? (r.gpu.memory_used_mb / 1024).toFixed(1) : '?') + '/' + (r.gpu && r.gpu.memory_total_mb ? (r.gpu.memory_total_mb / 1024).toFixed(1) : '?') + ' GB VRAM';
-    let gpuSub = gpuName + '  |  ' + gpuUtil + '% util  |  ' + gpuTemp + '  |  ' + gpuPower + '  |  ' + gpuVram;
+    let gpuSub = gpuName + '  |  ' + gpuUtil + '% util  |  ' + gpuTemp + '  |  ' + gpuPower + gpuFanStr + '  |  ' + gpuVram;
 
     if (grid) {
       grid.innerHTML = makeResourceCard('cpu', 'CPU', cpu.toFixed(0) + '%', cpuSub, Math.min(cpu, 100), cpuBarClass) +
@@ -307,6 +310,26 @@ async function refreshResources() {
         let parts = [pCpu, pGpu, pRam, pMobo, pTotal].filter(Boolean);
         if (parts.length) {
           html += '<div style="margin-top:6px;padding-top:6px;border-top:1px solid #21262d;display:flex;gap:4px;flex-wrap:wrap;font-size:11px;color:#8b949e"><span style="font-weight:500">&#9889; Power:</span> ' + parts.join('  |  ') + '</div>';
+        }
+      }
+      let s = r.sensors;
+      if (s) {
+        let sensorParts = [];
+        if (s.cpu_fan_rpm) sensorParts.push('CPU Fan: ' + s.cpu_fan_rpm + ' RPM');
+        if (s.disk_temps && s.disk_temps.length) {
+          s.disk_temps.forEach(function(d) { sensorParts.push('Disk ' + d.device_id + ': ' + d.temp_c + '°C'); });
+        }
+        if (s.network) {
+          let sent = s.network.bytes_sent_per_sec;
+          let recv = s.network.bytes_recv_per_sec;
+          if (sent > 0 || recv > 0) {
+            let fmt = function(b) { return b >= 1048576 ? (b/1048576).toFixed(1)+'MB/s' : b >= 1024 ? (b/1024).toFixed(0)+'KB/s' : b+'B/s'; };
+            sensorParts.push('&#8593; ' + fmt(sent) + '  &#8595; ' + fmt(recv));
+          }
+        }
+        if (sensorParts.length) {
+          html += '<div id="sensorsToggle" style="margin-top:6px;padding-top:6px;border-top:1px solid #21262d;font-size:11px;color:#8b949e;cursor:pointer;user-select:none" onclick="toggleSensors()"><span id="sensorsArrow">&#9654;</span> <span style="font-weight:500">Sensors</span></div>';
+          html += '<div id="sensorsContent" style="display:none;margin-top:4px;padding-left:12px;font-size:11px;color:#8b949e">' + sensorParts.join('<br>') + '</div>';
         }
       }
       footer.innerHTML = html + '</div>';
@@ -556,13 +579,42 @@ async function runSearch() {
   });
 }
 
-function showIndex() {
+async function showIndex() {
   const ia = $('inputArea');
   if (!ia) return;
   ia.style.display = 'block';
-  ia.innerHTML = '<div class="scope-row"><input type="text" id="indexPath" placeholder="Folder or file path" style="margin-bottom:0;flex:1"><button class="btn primary" onclick="runIndex()" style="width:auto">Index</button></div>';
+  ia.innerHTML = '<div class="scope-row"><input type="text" id="indexPath" placeholder="Folder or file path" style="margin-bottom:0;flex:1"><button class="btn primary" onclick="runIndex()" style="width:auto">Index</button></div><div id="indexBrowseDrives" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px"></div><div id="indexBrowseContents" style="margin-top:4px;font-size:12px;max-height:200px;overflow-y:auto"></div>';
   const ra = $('resultArea');
   if (ra) ra.style.display = 'none';
+  try {
+    const dr = await api('/api/drives');
+    const bd = $('indexBrowseDrives');
+    if (bd) {
+      bd.innerHTML = (dr.drives || []).map(function(d) {
+        return '<button class="btn small" onclick="idxBrowse(\'' + d.replace(/\\/g, '\\\\') + '\')">' + d + '</button>';
+      }).join('');
+    }
+  } catch(e) {}
+}
+
+async function idxBrowse(path) {
+  const ip = $('indexPath');
+  if (ip) ip.value = path;
+  try {
+    const r = await api('/api/browse', {path: path});
+    if (r.error) { toast(r.error, 'error'); return }
+    const bc = $('indexBrowseContents');
+    if (!bc) return;
+    let html = '<div style="margin-bottom:4px"><button class="btn small" onclick="idxBrowse(\'' + (r.path.replace(/\\/g, '\\\\').replace(/[^\\]+$/, '').replace(/\\$/, '') || r.path.match(/^[A-Z]:\\/)[0]).replace(/\\/g, '\\\\') + '\')">..</button></div>';
+    (r.items || []).forEach(function(item) {
+      if (!item.is_dir) return;
+      var fullPath = path.replace(/\\/g, '\\\\') + '\\\\' + item.name;
+      html += '<div style="cursor:pointer;padding:2px 4px;border-radius:2px" onmouseover="this.style.background=\'#21262d\'" onmouseout="this.style.background=\'\'" onclick="idxBrowse(\'' + fullPath + '\')">&#128193; ' + item.name + '</div>';
+    });
+    bc.innerHTML = html;
+  } catch(e) {
+    toast('Browse failed: ' + e.message, 'error');
+  }
 }
 
 async function runIndex() {
@@ -582,6 +634,15 @@ async function runIndex() {
     const res = $('result'); if (res) res.innerHTML = '<div class="section-title">&#10003; Index Complete</div><span style="font-size:13px">' + msg + '</span>';
     toast('Indexing complete: ' + msg, r.failed > 0 ? 'warn' : 'success');
   });
+}
+
+function toggleSensors() {
+  const c = $('sensorsContent');
+  const a = $('sensorsArrow');
+  if (!c || !a) return;
+  const vis = c.style.display !== 'block';
+  c.style.display = vis ? 'block' : 'none';
+  a.textContent = vis ? '&#9660;' : '&#9654;';
 }
 
 async function undoOrganize() {
